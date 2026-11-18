@@ -2,7 +2,7 @@ name: Update TechPulse
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # GitHub may delay scheduled runs by a few minutes at busy times
+    - cron: "7,22,37,52 * * * *"   # GitHub may delay scheduled runs by a few minutes at busy times
   workflow_dispatch:
     inputs:
       force_all:
