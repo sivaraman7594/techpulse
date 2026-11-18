@@ -44,7 +44,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
           ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }} 
+          STACKEXCHANGE_KEY: ${{ secrets.STACKEXCHANGE_KEY }}
           FORCE_ALL: ${{ inputs.force_all && '1' || '0' }}
         run: python fetcher/fetch.py
 
