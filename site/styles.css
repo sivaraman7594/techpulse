@@ -56,7 +56,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .link { background: none; border: 0; color: var(--accent); font-weight: 600; padding: 0 0 0 6px; }
 
 .search { padding: 0 16px; }
-.search input, .sheet input[type=text] {
+.search input, .sheet input[type=text], .sheet input[type=password] {
   width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border);
   background: var(--surface); color: var(--text); font: inherit; outline: none;
 }
@@ -180,4 +180,6 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 
 .skeleton { height: 96px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: sh 1.2s infinite; }
 @keyframes sh { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+.icon-btn.spin svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .skeleton, .icon-btn.spin svg { animation: none; } }

@@ -75,6 +75,43 @@ site/data/*.json ──► GitHub Pages ──► app on your phone (cached for 
 The app refreshes whenever you open it, checks for new data every 5 minutes while it's open, and
 shows the last loaded data when you're offline. Items that are new since your last visit have a red dot.
 
+## Refresh button: sync everything from your phone
+
+- **Without setup:** Refresh instantly pulls the newest Hacker News and dev.to stories straight into
+  the app. Other sources update on the server schedule.
+- **With a token (recommended, one time per device):** Refresh also starts the full server sync
+  (all blogs, releases, jobs and Q&A). The status line shows *Syncing all sources…* and the app
+  reloads by itself when the sync finishes, about 3 minutes later.
+  1. In the app, open **Settings → Full sync from Refresh → Create a token on GitHub**.
+  2. Repository access: **Only select repositories → techpulse**. Permissions: **Actions → Read and write**.
+     Nothing else is needed.
+  3. Click **Generate token**, copy the token, and paste it into the box in Settings. It should say *✓ Token works*.
+
+  The token is stored only on that device. It can do nothing except start this repo's workflow.
+  Pressing Refresh again within 5 minutes won't start a second sync.
+
+## Recommended: guaranteed 15-minute syncs (free)
+
+GitHub's built-in schedule is best-effort. In new or quiet repos it can be hours late or skipped.
+A free external timer that starts the workflow directly makes syncing reliable.
+
+1. **Create a token.** Go to GitHub → profile picture → **Settings → Developer settings →
+   Personal access tokens → Fine-grained tokens → Generate new token**.
+   - Name: `techpulse-trigger`. Expiration: 1 year.
+   - Repository access: **Only select repositories → techpulse**.
+   - Permissions: **Actions → Read and write**. Nothing else is needed.
+   - Click **Generate** and copy the token.
+2. **Create the timer.** Sign up free at https://cron-job.org and click **Create cronjob**:
+   - URL: `https://api.github.com/repos/<your-username>/techpulse/actions/workflows/update.yml/dispatches`
+   - Schedule: every 15 minutes.
+   - **Advanced** tab: request method **POST**, request body `{"ref":"main"}`, and these headers:
+     - `Authorization: Bearer <your token>`
+     - `Accept: application/vnd.github+json`
+     - `User-Agent: techpulse`
+   - Save, then click **Test run**. You should get status **204**, and a new run appears in the **Actions** tab.
+
+The token stays inside cron-job.org. It is never put in the app or the repo.
+
 ## Optional: push alerts to your phone (free)
 
 1. Pick a hard-to-guess topic name, for example `techpulse-7f3k9q2`.

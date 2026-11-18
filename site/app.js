@@ -31,7 +31,7 @@ const state = {
   learnTopic: store.get('learnTopic', 'csharp'),
   prevVisit: store.get('lastVisit', null),
   query: '',
-  meta: null, news: [], jobs: [], opps: [], trends: [], health: [], learnIndex: null,
+  meta: null, news: [], live: [], sync: null, jobs: [], opps: [], trends: [], health: [], learnIndex: null,
   learnCache: {}, openLearn: new Set(),
   newsById: new Map(),
   list: [], shown: 0, openTrend: null, lastLoad: 0,
@@ -133,11 +133,12 @@ async function getJSON(name) {
   return r.json();
 }
 
+// Returns how many news items are new, or -1 when loading failed.
 async function load({ quiet = false } = {}) {
   setStatus('Updating…');
   try {
     const meta = await getJSON('meta.json');
-    if (quiet && state.meta && meta.updated === state.meta.updated) { setStatus(); return; }
+    if (quiet && state.meta && meta.updated === state.meta.updated) { setStatus(); return 0; }
     const [news, jobs, opps, trends, health, learnIndex] = await Promise.all([
       ...['news.json', 'jobs.json', 'opportunities.json', 'trends.json', 'health.json'].map(getJSON),
       getJSON('learn/index.json').catch(() => null),   // optional: older deployments have no learn data
@@ -148,13 +149,14 @@ async function load({ quiet = false } = {}) {
       meta, news: news.items, jobs: jobs.items, opps: opps.items, trends: trends.terms, health: health.sources,
       learnIndex, learnCache: {}, lastLoad: Date.now(),
     });
-    state.newsById = new Map(state.news.map(i => [i.id, i]));
-    if (hadData) {
-      const fresh = state.news.filter(i => !before.has(i.id)).length;
-      if (fresh) toast(`${fresh} new update${fresh > 1 ? 's' : ''}`);
-    }
+    catRx = null;
+    mergeLive();
+    const fresh = hadData ? state.news.filter(i => !before.has(i.id)).length : 0;
+    if (quiet && fresh) toast(`${fresh} new update${fresh > 1 ? 's' : ''}`);
     render();
     renderSources();
+    setStatus();
+    return fresh;
   } catch (e) {
     console.error(e);
     if (!state.news.length) {
@@ -162,15 +164,177 @@ async function load({ quiet = false } = {}) {
         'Could not load updates. ', navigator.onLine ? 'The first data refresh may still be running — try again in a few minutes.' : 'You are offline.'));
     }
     toast(navigator.onLine ? 'Update failed — showing saved data' : 'Offline — showing saved data');
+    setStatus();
+    return -1;
   }
-  setStatus();
 }
 
 function setStatus(text) {
   const m = state.meta;
-  $('#status').textContent = text || (m
+  $('#status').textContent = text || (state.sync ? 'Syncing all sources…' : m
     ? `Updated ${ago(m.updated)} · ${m.sources.ok}/${m.sources.total} sources live`
     : 'Loading…');
+}
+
+// ------------------------------------------------------------------ refresh
+
+// Refresh does two things: pulls the newest stories straight from APIs that browsers may read
+// (instant), and — when this device has a GitHub token — starts the full server sync and
+// reloads when it finishes. The token never leaves this device except to call GitHub.
+const REPO = (() => {
+  const user = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
+  const repo = location.pathname.split('/')[1];
+  return user && repo ? `${user}/${repo}` : '';
+})();
+const GH = 'https://api.github.com/repos/';
+const SYNC_POLL_MS = 20e3;
+const SYNC_MAX_MS = 12 * 60e3;
+const SYNC_MIN_GAP_MS = 5 * 60e3;
+const LIVE_KEEP_MS = 12 * 3600e3;
+
+const normUrl = u => {
+  try { const p = new URL(u); return (p.hostname.replace(/^www\./, '') + p.pathname.replace(/\/$/, '') + p.search).toLowerCase(); } catch { return u; }
+};
+const titleKey = t => (t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const isoSec = d => { const t = Date.parse(d); return Number.isNaN(t) ? null : new Date(t).toISOString().replace(/\.\d+Z$/, 'Z'); };
+
+let catRx = null;
+function classify(text) {
+  catRx ??= ((state.meta && state.meta.categories) || []).flatMap(c => {
+    try { return c.keywords && c.keywords.length ? [[c.id, new RegExp(c.keywords.map(w => `(?:${w})`).join('|'), 'i')]] : []; } catch { return []; }
+  });
+  return catRx.filter(([, r]) => r.test(text)).map(([id]) => id);
+}
+
+function liveItem(source, sid, title, url, summary, date, extra) {
+  summary = (summary || '').trim().slice(0, 300);
+  return Object.assign({
+    id: 'live-' + normUrl(url), title, url, summary, source, sid, weight: 1, live: true,
+    date: isoSec(date), seen: isoSec(new Date()), tags: classify(`${title} ${summary}`),
+  }, extra);
+}
+
+async function fetchLive() {
+  const get = url => fetch(url, { cache: 'no-store' }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
+  const [hn, dev] = await Promise.allSettled([
+    get('https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=40'),
+    get('https://dev.to/api/articles?top=1&per_page=30'),
+  ]);
+  const out = [];
+  if (hn.status === 'fulfilled') for (const s of hn.value.hits || []) {
+    const discuss = `https://news.ycombinator.com/item?id=${s.objectID}`;
+    if (s.title) out.push(liveItem('Hacker News', 'hn-live', s.title, safeUrl(s.url || discuss), '', s.created_at,
+      { points: s.points || 0, comments: s.num_comments || 0, discuss }));
+  }
+  if (dev.status === 'fulfilled') for (const a of dev.value || []) {
+    if (a.title && safeUrl(a.url) !== '#') out.push(liveItem('DEV Community', 'devto-live', a.title, a.url, a.description,
+      a.published_at, { points: a.public_reactions_count || 0, comments: a.comments_count || 0 }));
+  }
+  return out;
+}
+
+// Live items stay until the server data has them too (or for 12 h), so a reload doesn't drop them.
+function mergeLive() {
+  const server = state.news.filter(i => !i.live);
+  const urls = new Set(server.map(i => normUrl(i.url)));
+  const titles = new Set(server.map(i => titleKey(i.title)));
+  const cut = Date.now() - LIVE_KEEP_MS;
+  const ids = new Set();
+  state.live = state.live.filter(i => {
+    if (Date.parse(i.seen) < cut || urls.has(normUrl(i.url)) || titles.has(titleKey(i.title)) || ids.has(i.id)) return false;
+    ids.add(i.id);
+    return true;
+  });
+  state.news = [...state.live, ...server].sort((a, b) => itemTime(b).localeCompare(itemTime(a)));
+  state.newsById = new Map(state.news.map(i => [i.id, i]));
+}
+
+async function startSync() {
+  const token = store.get('ghToken', '');
+  if (!token || !REPO) return 'notoken';
+  if (state.sync) return 'running';
+  if (state.meta && Date.now() - Date.parse(state.meta.updated) < SYNC_MIN_GAP_MS) return 'fresh';
+  if (Date.now() - store.get('lastDispatch', 0) < SYNC_MIN_GAP_MS) { pollSync(); return 'running'; }
+  try {
+    const r = await fetch(`${GH}${REPO}/actions/workflows/update.yml/dispatches`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: 'main' }),
+    });
+    if (r.status !== 204) return 'denied';
+  } catch { return 'error'; }
+  store.set('lastDispatch', Date.now());
+  pollSync();
+  return 'started';
+}
+
+function pollSync() {
+  if (state.sync) return;
+  const from = state.meta && state.meta.updated;
+  const started = Date.now();
+  state.sync = setInterval(async () => {
+    try {
+      const meta = await getJSON('meta.json');
+      if (meta.updated !== from) {
+        stopSync();
+        const n = await load();
+        if (n >= 0) toast(n ? `Full sync done — ${n} new update${n > 1 ? 's' : ''}` : 'Full sync done — everything is up to date');
+        return;
+      }
+    } catch { /* keep polling */ }
+    if (Date.now() - started > SYNC_MAX_MS) {
+      stopSync();
+      toast('Sync is taking longer than usual — check the Actions tab on GitHub');
+    }
+  }, SYNC_POLL_MS);
+  setStatus();
+}
+
+function stopSync() {
+  clearInterval(state.sync);
+  state.sync = null;
+  setStatus();
+}
+
+async function refresh() {
+  const btn = $('#refreshBtn');
+  if (btn.classList.contains('spin')) return;
+  btn.classList.add('spin');
+  try {
+    const [fresh, live] = await Promise.all([load(), fetchLive().catch(() => [])]);
+    const before = new Set(state.live.map(i => i.id));
+    state.live = [...state.live, ...live];
+    mergeLive();
+    const added = state.live.filter(i => !before.has(i.id)).length;
+    if (added) render();
+    const sync = await startSync();
+    const n = Math.max(fresh, 0) + added;
+    const got = n ? `${n} new update${n > 1 ? 's' : ''}` : '';
+    const stale = state.meta && Date.now() - Date.parse(state.meta.updated) > 30 * 60e3;
+    if (sync === 'started' || sync === 'running') toast(`${got ? got + ' · ' : ''}Syncing all sources — about 3 min`);
+    else if (sync === 'denied') toast('GitHub refused the sync — check the token in Settings');
+    else if (sync === 'error') toast(`${got ? got + ' · ' : ''}Could not reach GitHub to start a full sync`);
+    else if (sync === 'notoken' && stale) toast(`${got ? got + ' · ' : ''}Add a GitHub token in Settings to sync every source from Refresh`);
+    else if (fresh >= 0 || added) toast(got || 'Up to date');
+  } finally {
+    btn.classList.remove('spin');
+  }
+}
+
+async function checkToken(token) {
+  store.set('ghToken', token);
+  const out = $('#tokenStatus');
+  if (!token) { out.textContent = 'No token: Refresh updates Hacker News and dev.to instantly; other sources follow the server schedule.'; return; }
+  if (!REPO) { out.textContent = 'Saved. Full sync works when the app is opened from its github.io address.'; return; }
+  out.textContent = 'Checking…';
+  try {
+    const r = await fetch(`${GH}${REPO}/actions/workflows/update.yml`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+    out.textContent = r.ok ? '✓ Token works — Refresh now syncs every source.'
+      : r.status === 401 ? 'GitHub rejected this token — copy it again.'
+        : `This token can't reach ${REPO} (HTTP ${r.status}). Give it access to that repository with Actions: Read and write.`;
+  } catch {
+    out.textContent = 'Could not reach GitHub — check your connection.';
+  }
 }
 
 // ------------------------------------------------------------------ lists
@@ -694,7 +858,15 @@ function init() {
     typing = setTimeout(() => { state.query = e.target.value; render(); }, 180);
   });
 
-  $('#refreshBtn').addEventListener('click', () => load());
+  $('#refreshBtn').addEventListener('click', refresh);
+  const tok = $('#ghToken');
+  tok.value = store.get('ghToken', '');
+  $('#tokenStatus').textContent = tok.value ? 'Token saved on this device.' : '';
+  tok.addEventListener('change', () => checkToken(tok.value.trim()));
+  if (REPO) {
+    $('#tokenLink').href = `https://github.com/settings/personal-access-tokens/new?name=TechPulse+refresh`
+      + `&description=Lets+the+TechPulse+app+start+a+sync&target_name=${REPO.split('/')[0]}&expires_in=365&actions=write`;
+  }
   $('#savedBtn').addEventListener('click', () => setView(state.view === 'saved' ? 'news' : 'saved'));
   $('#savedBtn').setAttribute('aria-pressed', String(state.view === 'saved'));
   $('#settingsBtn').addEventListener('click', () => { $('#skills').value = state.settings.skills; $('#settings').showModal(); });

@@ -79,6 +79,15 @@
         </div>
       </section>
       <section>
+        <h3>Full sync from Refresh</h3>
+        <p class="muted">Refresh always pulls the newest Hacker News and dev.to stories instantly. To make it also
+          fetch <strong>every source</strong> (blogs, releases, jobs), paste a GitHub token here once. It is stored only on this device.</p>
+        <p class="muted"><a id="tokenLink" class="link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token on GitHub ›</a><br>
+          Repository access: <em>Only select repositories → techpulse</em>. Permissions: <em>Actions → Read and write</em>. Generate, copy, paste below.</p>
+        <input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        <p id="tokenStatus" class="muted"></p>
+      </section>
+      <section>
         <h3>Phone alerts</h3>
         <p class="muted">Breaking updates arrive through the free <strong>ntfy</strong> app (Android &amp; iPhone).
           Install it, tap <em>Subscribe</em>, and enter the topic name you saved as the <code>NTFY_TOPIC</code> secret during setup.</p>

@@ -1239,7 +1239,7 @@ def main():
 
     write("meta.json", {
         "updated": iso(NOW),
-        "categories": [{"id": c["id"], "label": c["label"]} for c in CFG["categories"]],
+        "categories": [{"id": c["id"], "label": c["label"], "keywords": c["keywords"]} for c in CFG["categories"]],
         "counts": {"news": len(news), "jobs": len(jobs), "opportunities": len(opps), "trends": len(trends),
                    "learn": len(learn)},
         "sources": {"total": len(health), "ok": sum(1 for h in health if h.get("ok")),
