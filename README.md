@@ -26,6 +26,18 @@ site/data/*.json ──► GitHub Pages ──► app on your phone (cached for 
   boards, HN "Who is hiring" and, optionally, Adzuna. Each job is tagged India, Remote or Global.
 - **Opportunities:** daily. Hackathons (Devpost), conferences and calls for speakers (confs.tech),
   GitHub good-first-issues, plus programs, fellowships and free learning picked up from the news.
+- **.NET & Azure:** official .NET, Azure, Azure SDK, Visual Studio and Azure DevOps blogs, plus
+  community experts (Andrew Lock, Milan Jovanović, Code Maze, Scott Hanselman, The Morning Brew)
+  and .NET / ASP.NET Core / EF Core / MAUI / Aspire releases.
+- **Learn:** pick a language (23 of them, including C#/.NET, ASP.NET Core, Azure, React, Angular,
+  Python, Java, SQL, Go and more), then a mode:
+  - **Interview:** curated answers linked to official docs, plus open-licensed collections (React: MIT,
+    JavaScript: BSD, System Design Primer: CC BY 4.0). The fetcher checks each repo's license before using it.
+  - **Scenario:** "how would you…" troubleshooting and design questions.
+  - **Top Q&A:** highest-voted Stack Overflow questions with accepted answers, shown with author,
+    votes and license (CC BY-SA 4.0).
+  - **Latest:** answered Stack Overflow questions from the past 30 days.
+  - Mark questions as **known** to track your interview prep.
 - **Source health:** the Settings screen lists every source as live or failing. A source that
   breaks never stops the others.
 
@@ -78,6 +90,27 @@ exploited vulnerabilities and big Hacker News stories. To also get job alerts, a
 
 1. Register at https://developer.adzuna.com/ (free) to get an **App ID** and **App Key**.
 2. Add the repo secrets `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`.
+
+## Recommended: Stack Overflow API key (free)
+
+Without a key, Stack Overflow allows 300 requests a day per IP address, and GitHub's servers share
+IP addresses. With a key the limit is 10,000.
+1. Log in to https://stackapps.com/apps/oauth/register with a Stack Overflow account and register an
+   app (any name; use your GitHub Pages URL as the website).
+2. Copy the **Key** (not the client secret) into a repo secret named `STACKEXCHANGE_KEY`.
+
+## Add your own interview questions
+
+Edit `interview/<topic>.md` on GitHub, e.g. `interview/csharp.md`. Each question looks like this:
+
+```
+### What is dependency injection?
+<!-- level: basic; kind: concept; ref: https://learn.microsoft.com/dotnet/core/extensions/dependency-injection -->
+Your answer. Lists and fenced code blocks work.
+```
+
+`kind: scenario` puts it in the Scenario list. The file name must match a topic id in `learn_topics`
+in `sources.json` (csharp, aspnet, azure, react, angular, python, sql, …).
 
 ## Customize
 

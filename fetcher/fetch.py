@@ -10,6 +10,7 @@ Environment (all optional):
   GITHUB_TOKEN       higher GitHub API rate limits
   ADZUNA_APP_ID / ADZUNA_APP_KEY   enables the Adzuna job source
   NTFY_TOPIC         sends push alerts to the ntfy app
+  STACKEXCHANGE_KEY  raises the Stack Overflow API quota (300 → 10,000 requests/day)
   FORCE_ALL=1        fetch every source regardless of its schedule
 """
 import gzip
@@ -19,6 +20,7 @@ import json
 import os
 import re
 import sys
+import textwrap
 import time
 import urllib.error
 import urllib.parse
@@ -627,6 +629,291 @@ def a_github_good_first(src):
     return fan_out(one, src["languages"], 2)
 
 
+# ---------------------------------------------------------------- learn: Q&A and interview prep
+#
+# Answers are stored as simple blocks ({"t": "p"|"li"|"h"|"code"|"more", "x": text}) so the app can
+# render them as plain text — no feed HTML is ever injected into the page.
+
+LEARN_TOPICS = {t["id"]: t for t in CFG.get("learn_topics", [])}
+SE_API = "https://api.stackexchange.com/2.3"
+SCENARIO_RX = re.compile(
+    r"\bhow (would|do|can|should|to)\b|\bdesign (a|an)\b|what happens (when|if)|\bbest (way|practice)|"
+    r"\bwhen (should|to use)\b|\bhandle\b|optimi[sz]|\bscal(e|ing|able)\b|troubleshoot|\bdebug|\bmigrat|"
+    r"\bprevent\b|\bavoid\b|\bimprove\b|\bslow\b|\bsecure\b|scenario|\bsuppose\b|\bimagine\b|\breal[- ]world", re.I)
+QUESTION_RX = re.compile(
+    r"\?\s*$|^(what|how|why|when|which|where|who|explain|describe|define|difference|differentiate|compare|can|is|are|"
+    r"does|do|should|name|list|write|give|tell)\b", re.I)
+SKIP_HEAD_RX = re.compile(r"table of contents|disclaimer|contribut|licen[sc]e|back to top|sponsor|^\W*$", re.I)
+HEAD_RX = re.compile(r"^\s{0,4}(?:\d+\.\s*)?(#{2,4})\s+(.+?)(?:\s+#+)?\s*$")
+HTML_TAG_RX = re.compile(
+    r"</?(?:a|b|i|u|s|em|strong|br|p|div|span|img|sup|sub|code|pre|details|summary|kbd|ul|ol|li|table|thead|tbody|"
+    r"tr|td|th|h[1-6]|hr|center|font|del|ins|blockquote|picture|source|video)\b[^<>]*>", re.I)
+
+
+def text_of(fragment, limit=None):
+    """Plain text from escaped HTML (Stack Overflow). Strips tags first so `List&lt;T&gt;` survives."""
+    s = html.unescape(TAG_RE.sub(" ", fragment or ""))
+    s = re.sub(r"\s+", " ", s).strip()
+    return s[:limit].rsplit(" ", 1)[0] + "…" if limit and len(s) > limit else s
+
+
+def html_blocks(body, limit=3000):
+    blocks, total = [], 0
+    for m in re.finditer(r"<pre[^>]*>(.*?)</pre>|<(p|li|h[1-6]|blockquote)\b[^>]*>(.*?)</\2>", body or "", re.S | re.I):
+        if m.group(1) is not None:
+            text = html.unescape(TAG_RE.sub("", m.group(1))).strip("\n")
+            block = {"t": "code", "x": text[:1500]}
+        else:
+            inner = re.sub(r"<code>(.*?)</code>", r"`\1`", m.group(3), flags=re.S)
+            text = text_of(inner, 1200)
+            kind = m.group(2).lower()
+            block = {"t": "li" if kind == "li" else "h" if kind.startswith("h") else "p", "x": text}
+        if not block["x"]:
+            continue
+        blocks.append(block)
+        total += len(block["x"])
+        if total > limit:
+            blocks.append({"t": "more"})
+            break
+    return blocks
+
+
+def md_inline(s):
+    # Only touch prose: `__eq__`, `**kwargs` or `<div>` inside backticks must survive untouched.
+    parts = re.split(r"(`[^`]*`)", s)
+    for n in range(0, len(parts), 2):
+        p = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", parts[n])
+        p = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", p)
+        p = re.sub(r"\*\*(.+?)\*\*", r"\1", p)
+        p = re.sub(r"(?<!\w)__(.+?)__(?!\w)", r"\1", p)
+        parts[n] = html.unescape(HTML_TAG_RX.sub(" ", p))
+    return re.sub(r"\s+", " ", "".join(parts)).strip()
+
+
+def md_blocks(md, limit=3000):
+    blocks, para = [], []
+    lines = textwrap.dedent(md).split("\n")
+
+    def flush():
+        if para:
+            text = md_inline(" ".join(para))
+            para.clear()
+            if text:
+                blocks.append({"t": "p", "x": text})
+
+    i = 0
+    while i < len(lines) and sum(len(b["x"]) for b in blocks) < limit:
+        s = lines[i].strip()
+        if s.startswith(("```", "~~~")):
+            flush()
+            fence, code = s[:3], []
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith(fence):
+                code.append(lines[i])
+                i += 1
+            text = textwrap.dedent("\n".join(code)).strip("\n")
+            if text:
+                blocks.append({"t": "code", "x": text[:1500]})
+        elif s.startswith("|"):
+            flush()
+            rows = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = lines[i].strip()
+                if not re.fullmatch(r"\|?[\s:|-]+\|?", row):
+                    rows.append(md_inline(row))
+                i += 1
+            if rows:
+                blocks.append({"t": "code", "x": "\n".join(rows)[:1500]})
+            continue
+        elif re.match(r"([-*+]|\d+[.)])\s+", s):
+            flush()
+            text = md_inline(re.sub(r"^([-*+]|\d+[.)])\s+", "", s))
+            if text:
+                blocks.append({"t": "li", "x": text})
+        elif re.match(r"#{1,6}\s", s):
+            flush()
+            text = md_inline(s.lstrip("#").strip())
+            if text:
+                blocks.append({"t": "h", "x": text})
+        elif not s or s.startswith("<!--") or re.fullmatch(r"[-*_]{3,}", s) or "back to top" in s.lower():
+            flush()
+        else:
+            para.append(s)
+        i += 1
+    flush()
+    if any(line.strip() for line in lines[i:]):
+        blocks.append({"t": "more"})
+    return blocks
+
+
+def gh_anchor(heading):
+    return re.sub(r"[^\w\- ]", "", md_inline(heading).lower()).replace(" ", "-")
+
+
+def md_questions(md):
+    """Split a Q&A markdown file into (question, raw heading, answer markdown)."""
+    sections, cur, buf = [], None, []
+    for line in md.split("\n"):
+        m = HEAD_RX.match(line)
+        if m:
+            heading = m.group(2)
+            if cur is not None and re.match(r"(answers?|solution)\b", md_inline(heading), re.I):
+                continue  # "### Answer" belongs to the question above
+            if cur is not None:
+                sections.append((cur, buf))
+            cur, buf = heading, []
+        elif cur is not None:
+            buf.append(line)
+    if cur is not None:
+        sections.append((cur, buf))
+    out = []
+    for heading, lines in sections:
+        title = md_inline(heading)
+        title = re.sub(r"^(question\s*\d+[.:]?|q\d+[.:]?|\d+[.)])\s*", "", title, flags=re.I).strip()
+        body = "\n".join(lines)
+        if SKIP_HEAD_RX.search(title) or not QUESTION_RX.search(title):
+            continue
+        if 8 <= len(title) <= 220 and len(body.strip()) >= 40:
+            out.append((title, heading, body))
+    return out
+
+
+def learn_item(src, topic, mode, title, url, answer, **kw):
+    url = safe_url(url)
+    if not title or not url or not answer:
+        return None
+    scenario = kw.pop("scenario", None)
+    it = {"id": make_id(topic, mode, url, title), "topic": topic, "mode": mode, "title": title, "url": url,
+          "answer": answer, "scenario": bool(SCENARIO_RX.search(title)) if scenario is None else scenario,
+          "source": src["name"], "sid": src["id"], "date": None, "seen": iso(NOW)}
+    it.update({k: v for k, v in kw.items() if v not in (None, "", [])})
+    return it
+
+
+def se_get(path, **params):
+    params.setdefault("site", "stackoverflow")
+    if ENV("STACKEXCHANGE_KEY"):
+        params["key"] = ENV("STACKEXCHANGE_KEY")
+    d = get_json(f"{SE_API}{path}?{urllib.parse.urlencode(params)}")
+    if d.get("error_id"):
+        raise RuntimeError(f"Stack Exchange {d.get('error_name')}: {d.get('error_message')}")
+    time.sleep(0.2 + d.get("backoff", 0))  # the API requires honouring backoff
+    return d
+
+
+def a_stackoverflow(src):
+    """Top-voted and recent questions per topic — only those with an accepted answer."""
+    out, failed = Results(), []
+    for tid, topic in LEARN_TOPICS.items():
+        tags = topic.get("so_tags") or []
+        if not tags:
+            continue
+        try:
+            calls = [(w["mode"], w.get("days"), tags[0], w["count"]) for w in src["windows"]]
+            calls += [("qa", None, t, src.get("secondary_count", 10)) for t in tags[1:]]
+            qs = {}
+            for mode, days, tag, count in calls:
+                params = {"order": "desc", "sort": "votes", "tagged": tag, "pagesize": count, "filter": "withbody"}
+                if days:
+                    params["fromdate"] = int((NOW - timedelta(days=days)).timestamp())
+                for q in se_get("/questions", **params).get("items", []):
+                    if q.get("accepted_answer_id") and q["question_id"] not in qs:
+                        qs[q["question_id"]] = (mode, q)
+            ids = [q["accepted_answer_id"] for _, q in qs.values()]
+            answers = {}
+            for k in range(0, len(ids), 100):
+                batch = ";".join(str(x) for x in ids[k:k + 100])
+                for a in se_get(f"/answers/{batch}", filter="withbody", pagesize=100).get("items", []):
+                    answers[a["answer_id"]] = a
+            for mode, q in qs.values():
+                a = answers.get(q["accepted_answer_id"])
+                if not a:
+                    continue
+                it = learn_item(src, tid, mode, text_of(q.get("title"), 220), q.get("link"),
+                                html_blocks(a.get("body", ""), 3000),
+                                question=html_blocks(q.get("body", ""), 700), score=q.get("score"),
+                                answer_score=a.get("score"), accepted=True,
+                                author=text_of((a.get("owner") or {}).get("display_name")),
+                                answer_url=f"https://stackoverflow.com/a/{a['answer_id']}",
+                                license="CC BY-SA 4.0", date=iso(parse_date(q.get("creation_date"))),
+                                views=q.get("view_count"))
+                if it:
+                    it["part"] = tid
+                    out.append(it)
+        except Exception as e:
+            log(f"    ! {tid}: {type(e).__name__}: {e}")
+            failed.append(tid)
+    out.failed = tuple(failed)
+    return out
+
+
+def repo_info(repo, allow_spdx=None):
+    info = get_json(f"https://api.github.com/repos/{repo}", gh_headers())
+    spdx = (info.get("license") or {}).get("spdx_id") or "NONE"
+    if allow_spdx and spdx not in allow_spdx:
+        raise RuntimeError(f"license is {spdx}, expected {'/'.join(allow_spdx)} — skipped to respect copyright")
+    return info, spdx
+
+
+def a_github_markdown(src):
+    info, spdx = repo_info(src["repo"], src.get("allow_spdx"))
+    md = http_get(f"https://raw.githubusercontent.com/{src['repo']}/{info['default_branch']}/"
+                  f"{src.get('path', 'README.md')}").decode("utf-8", "replace")
+    out = [learn_item(src, src["topic"], "interview", title, f"https://github.com/{src['repo']}#{gh_anchor(heading)}",
+                      md_blocks(body, 2500), license=src.get("license") or spdx,
+                      author=src["repo"].split("/")[0], stars=info.get("stargazers_count"))
+           for title, heading, body in md_questions(md)]
+    return out[: src.get("max_items", 400)]
+
+
+def a_sdp_solutions(src):
+    repo, path = src["repo"], src["path"]
+    info, _ = repo_info(repo)
+    raw = f"https://raw.githubusercontent.com/{repo}/{info['default_branch']}"
+    if src.get("license_text") and src["license_text"] not in http_get(f"{raw}/README.md").decode("utf-8", "replace"):
+        raise RuntimeError("license notice not found in README — skipped to respect copyright")
+    dirs = [d["name"] for d in get_json(f"https://api.github.com/repos/{repo}/contents/{path}", gh_headers())
+            if d.get("type") == "dir"]
+
+    def one(d):
+        md = http_get(f"{raw}/{path}/{d}/README.md").decode("utf-8", "replace")
+        m = re.search(r"^#\s+(.+)$", md, re.M)
+        title = md_inline(m.group(1)) if m else d.replace("_", " ").title()
+        return [learn_item(src, src["topic"], "interview", title,
+                           f"https://github.com/{repo}/tree/{info['default_branch']}/{path}/{d}",
+                           md_blocks(md[m.end():] if m else md, 3500), scenario=True, level="advanced",
+                           license=src.get("license"), author=repo.split("/")[0], stars=info.get("stargazers_count"))]
+    return fan_out(one, dirs, 4)
+
+
+def a_curated(src):
+    """interview/<topic>.md — '### Question' then an optional <!-- level: …; kind: …; ref: … --> line, then the answer."""
+    folder = os.path.join(ROOT, src.get("path", "interview"))
+
+    def one(fname):
+        topic = os.path.splitext(fname)[0]
+        if topic not in LEARN_TOPICS:
+            raise ValueError(f"'{topic}' is not a learn_topics id")
+        with open(os.path.join(folder, fname), encoding="utf-8") as f:
+            text = f.read()
+        out = []
+        for chunk in re.split(r"^###\s+", text, flags=re.M)[1:]:
+            heading, _, body = chunk.partition("\n")
+            meta = {}
+            m = re.search(r"<!--(.*?)-->", body, re.S)
+            if m:
+                for part in m.group(1).split(";"):
+                    k, _, v = part.partition(":")
+                    meta[k.strip().lower()] = v.strip()
+                body = body[:m.start()] + body[m.end():]
+            ref = meta.get("ref") or ""
+            out.append(learn_item(src, topic, "interview", md_inline(heading), ref, md_blocks(body, 5000),
+                                  scenario=meta.get("kind") == "scenario", level=meta.get("level"), ref=ref,
+                                  author="TechPulse", license="Reviewed against official docs"))
+        return out
+    return fan_out(one, sorted(f for f in os.listdir(folder) if f.endswith(".md")), 4)
+
+
 ADAPTERS = {
     "rss": a_rss, "hn_front": a_hn_front, "hn_hot": a_hn_hot, "hf_papers": a_hf_papers,
     "github_releases": a_github_releases, "github_new_repos": a_github_new_repos, "cisa_kev": a_cisa_kev,
@@ -634,7 +921,10 @@ ADAPTERS = {
     "jobicy": a_jobicy, "rss_jobs": a_rss_jobs, "hn_hiring": a_hn_hiring, "adzuna": a_adzuna,
     "greenhouse": a_greenhouse, "lever": a_lever, "ashby": a_ashby,
     "devpost": a_devpost, "confs_tech": a_confs_tech, "github_good_first": a_github_good_first,
+    "stackoverflow": a_stackoverflow, "github_markdown": a_github_markdown, "sdp_solutions": a_sdp_solutions,
+    "curated": a_curated,
 }
+GROUPS = ("news", "jobs", "opportunities", "learn")
 
 
 # ---------------------------------------------------------------- running & merging
@@ -679,7 +969,7 @@ def run_group(group, prev_health):
 
 def update_health(prev_health, fresh):
     out = []
-    for group in ("news", "jobs", "opportunities"):
+    for group in GROUPS:
         for src in CFG.get(group, []):
             sid = src["id"]
             h = dict(prev_health.get(sid) or {})
@@ -887,13 +1177,13 @@ def write(name, data):
 def main():
     t0 = time.time()
     os.makedirs(OUT_DIR, exist_ok=True)
-    prev = {n: load_prev(f"{n}.json") for n in ("news", "jobs", "opportunities", "health")}
+    prev = {n: load_prev(f"{n}.json") for n in ("news", "jobs", "opportunities", "health", "learn/_all")}
     first_run = prev["news"] is None
     prev_health = {h["id"]: h for h in (prev["health"] or {}).get("sources", [])}
     log(f"TechPulse fetch at {iso(NOW)} (first run: {first_run})")
 
     fresh = {}
-    for group in ("news", "jobs", "opportunities"):
+    for group in GROUPS:
         log(f"[{group}]")
         fresh[group] = run_group(group, prev_health)
 
@@ -916,6 +1206,10 @@ def main():
     opps = [o for o in opps if not o.get("end") or o["end"] >= now_iso]
     opps.sort(key=lambda o: o.get("end") or o.get("start") or "9999")
 
+    # No age cut-off: classic top-voted questions were often asked 15+ years ago.
+    learn, _ = merge((prev["learn/_all"] or {}).get("items", []), fresh["learn"], True,
+                     NOW - timedelta(days=365 * 50), 30000)
+
     send_alerts(news, jobs, first_run)
     health = update_health(prev_health, fresh)
     trends = compute_trends(news)
@@ -925,10 +1219,29 @@ def main():
     write("opportunities.json", {"updated": iso(NOW), "items": opps})
     write("trends.json", {"updated": iso(NOW), "terms": trends})
     write("health.json", {"updated": iso(NOW), "sources": health})
+
+    # Learn data is split per topic so the app only downloads the language you open.
+    os.makedirs(os.path.join(OUT_DIR, "learn"), exist_ok=True)
+    by_topic = {}
+    for it in learn:
+        by_topic.setdefault(it["topic"], []).append(it)
+    topics_out = []
+    for tid, t in LEARN_TOPICS.items():
+        items = by_topic.get(tid, [])
+        write(f"learn/{tid}.json", {"updated": iso(NOW), "topic": tid, "items": items})
+        topics_out.append({"id": tid, "label": t["label"], "group": t.get("group", ""), "counts": {
+            "interview": sum(1 for i in items if i["mode"] == "interview"),
+            "scenario": sum(1 for i in items if i.get("scenario")),
+            "qa": sum(1 for i in items if i["mode"] == "qa"),
+            "latest": sum(1 for i in items if i["mode"] == "latest")}})
+    write("learn/index.json", {"updated": iso(NOW), "topics": topics_out})
+    write("learn/_all.json", {"updated": iso(NOW), "items": learn})
+
     write("meta.json", {
         "updated": iso(NOW),
         "categories": [{"id": c["id"], "label": c["label"]} for c in CFG["categories"]],
-        "counts": {"news": len(news), "jobs": len(jobs), "opportunities": len(opps), "trends": len(trends)},
+        "counts": {"news": len(news), "jobs": len(jobs), "opportunities": len(opps), "trends": len(trends),
+                   "learn": len(learn)},
         "sources": {"total": len(health), "ok": sum(1 for h in health if h.get("ok")),
                     "failing": [h["name"] for h in health if h.get("ok") is False and not h.get("disabled")]},
     })
@@ -937,7 +1250,7 @@ def main():
         if h.get("fails", 0) >= 3:
             log(f"::warning::Source '{h['name']}' has failed {h['fails']} runs in a row: {h.get('error')}")
     log(f"Done in {time.time() - t0:.0f}s — news {len(news)} (+{len(new_news)}), jobs {len(jobs)}, "
-        f"opportunities {len(opps)}, trends {len(trends)}")
+        f"opportunities {len(opps)}, trends {len(trends)}, learn {len(learn)}")
 
 
 if __name__ == "__main__":

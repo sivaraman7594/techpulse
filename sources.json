@@ -2,7 +2,8 @@
   "_help": "Add a source = add one object to the right list. Types: rss, hn_front, hn_hot, hf_papers, github_releases, github_new_repos, cisa_kev, remotive, arbeitnow, remoteok, himalayas, jobicy, rss_jobs, greenhouse, lever, ashby, adzuna, hn_hiring, devpost, confs_tech, github_good_first. 'every' = minutes between fetches, 'weight' 1-3 = importance.",
 
   "categories": [
-    {"id": "ai", "label": "AI", "keywords": ["\\bai\\b", "artificial intelligence", "\\bllms?\\b", "\\bgpt", "\\bclaude\\b", "\\bgemini\\b", "\\bllama\\b", "machine learning", "\\bml\\b", "neural", "openai", "anthropic", "deepmind", "diffusion", "transformer", "\\bagents?\\b", "agentic", "copilot", "hugging ?face", "mistral", "deepseek", "\\bqwen", "\\brag\\b", "fine-?tun", "inference", "chatbot", "generative", "\\bgenai\\b", "\\bmcp\\b", "reasoning model"]},
+    {"id": "dotnet", "label": ".NET & Azure", "keywords": ["\\.net\\b", "dotnet", "\\bc#", "csharp", "asp\\.net", "aspnetcore", "blazor", "\\bmaui\\b", "ef ?core", "entity framework", "visual studio", "nuget", "\\bf#", "azure", "\\baspire\\b", "signalr", "roslyn", "powershell", "\\bwpf\\b", "winui", "winforms", "xamarin", "msbuild", "sql server", "microsoft fabric", "\\bentra\\b", "semantic kernel", "orleans"]},
+    {"id": "ai","label": "AI", "keywords": ["\\bai\\b", "artificial intelligence", "\\bllms?\\b", "\\bgpt", "\\bclaude\\b", "\\bgemini\\b", "\\bllama\\b", "machine learning", "\\bml\\b", "neural", "openai", "anthropic", "deepmind", "diffusion", "transformer", "\\bagents?\\b", "agentic", "copilot", "hugging ?face", "mistral", "deepseek", "\\bqwen", "\\brag\\b", "fine-?tun", "inference", "chatbot", "generative", "\\bgenai\\b", "\\bmcp\\b", "reasoning model"]},
     {"id": "coding", "label": "Coding", "keywords": ["programming", "developer", "\\bcode\\b", "coding", "python", "javascript", "typescript", "\\brust\\b", "golang", "\\bgo \\d", "\\bjava\\b", "kotlin", "swift", "react", "node\\.?js", "\\bnext\\.?js", "angular", "\\bvue\\b", "svelte", "django", "fastapi", "spring boot", "compiler", "framework", "\\bapi\\b", "open source", "open-source", "github", "\\bide\\b", "vs ?code", "\\bsdk\\b", "release", "webassembly", "\\bwasm\\b"]},
     {"id": "cloud", "label": "Cloud & DevOps", "keywords": ["\\baws\\b", "azure", "google cloud", "\\bgcp\\b", "kubernetes", "\\bk8s\\b", "docker", "container", "serverless", "terraform", "devops", "\\bci/cd\\b", "observability", "\\bsre\\b", "datacenter", "data center", "cloud"]},
     {"id": "security", "label": "Security", "keywords": ["security", "vulnerab", "\\bcve-\\d", "exploit", "malware", "ransomware", "breach", "phishing", "zero-day", "0-day", "patch", "hacker", "backdoor", "botnet", "\\bapt\\d*\\b", "cyber"]},
@@ -35,6 +36,18 @@
   },
 
   "news": [
+    {"id": "dotnet-blog", "name": ".NET Blog (Microsoft)", "type": "rss", "url": "https://devblogs.microsoft.com/dotnet/feed/", "category": "dotnet", "weight": 3, "every": 30},
+    {"id": "azure-blog", "name": "Azure Blog", "type": "rss", "url": "https://azure.microsoft.com/en-us/blog/feed/", "category": "dotnet", "weight": 3, "every": 30},
+    {"id": "azure-sdk", "name": "Azure SDK Blog", "type": "rss", "url": "https://devblogs.microsoft.com/azure-sdk/feed/", "category": "dotnet", "weight": 2, "every": 60, "max_items": 20},
+    {"id": "vs-blog", "name": "Visual Studio Blog", "type": "rss", "url": "https://devblogs.microsoft.com/visualstudio/feed/", "category": "dotnet", "weight": 2, "every": 60},
+    {"id": "azure-devops", "name": "Azure DevOps Blog", "type": "rss", "url": "https://devblogs.microsoft.com/devops/feed/", "category": "dotnet", "weight": 2, "every": 60},
+    {"id": "andrewlock", "name": "Andrew Lock (.NET Escapades)", "type": "rss", "url": "https://andrewlock.net/rss.xml", "category": "dotnet", "weight": 2, "every": 180, "max_items": 10},
+    {"id": "milanj", "name": "Milan Jovanović", "type": "rss", "url": "https://www.milanjovanovic.tech/rss/feed.xml", "category": "dotnet", "weight": 2, "every": 180, "max_items": 10},
+    {"id": "codemaze", "name": "Code Maze", "type": "rss", "url": "https://code-maze.com/feed/", "category": "dotnet", "weight": 1, "every": 180},
+    {"id": "hanselman", "name": "Scott Hanselman", "type": "rss", "url": "https://feeds.hanselman.com/ScottHanselman", "category": "dotnet", "weight": 2, "every": 180, "max_items": 10},
+    {"id": "stevengiesel", "name": "Steven Giesel", "type": "rss", "url": "https://steven-giesel.com/feed.rss", "category": "dotnet", "weight": 1, "every": 180, "max_items": 10},
+    {"id": "morningbrew", "name": "The Morning Brew (.NET links)", "type": "rss", "url": "https://blog.cwa.me.uk/feed/", "category": "dotnet", "weight": 2, "every": 120},
+    {"id": "angular-blog", "name": "Angular Blog", "type": "rss", "url": "https://blog.angular.dev/feed", "category": "coding", "weight": 3, "every": 120},
     {"id": "openai", "name": "OpenAI", "type": "rss", "url": "https://openai.com/news/rss.xml", "category": "ai", "weight": 3, "every": 15},
     {"id": "anthropic", "name": "Anthropic (community mirror)", "type": "rss", "url": "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml", "category": "ai", "weight": 3, "every": 15},
     {"id": "deepmind", "name": "Google DeepMind", "type": "rss", "url": "https://deepmind.google/blog/rss.xml", "category": "ai", "weight": 3, "every": 15},
@@ -101,7 +114,7 @@
     {"id": "yourstory", "name": "YourStory (India)", "type": "rss", "url": "https://yourstory.com/feed", "category": "india", "weight": 1, "every": 30},
 
     {"id": "gh-releases", "name": "GitHub Releases", "type": "github_releases", "category": "coding", "weight": 2, "every": 60, "per_repo": 2,
-     "repos": ["python/cpython", "nodejs/node", "microsoft/TypeScript", "rust-lang/rust", "JetBrains/kotlin", "facebook/react", "vercel/next.js", "angular/angular", "vuejs/core", "sveltejs/svelte", "vitejs/vite", "tailwindlabs/tailwindcss", "denoland/deno", "oven-sh/bun", "flutter/flutter", "facebook/react-native", "expo/expo", "spring-projects/spring-boot", "fastapi/fastapi", "astral-sh/uv", "pytorch/pytorch", "tensorflow/tensorflow", "huggingface/transformers", "langchain-ai/langchain", "ollama/ollama", "vllm-project/vllm", "kubernetes/kubernetes", "docker/compose", "hashicorp/terraform", "microsoft/vscode", "anthropics/claude-code", "openai/codex", "dotnet/runtime"]},
+     "repos": ["python/cpython", "nodejs/node", "microsoft/TypeScript", "rust-lang/rust", "JetBrains/kotlin", "facebook/react", "vercel/next.js", "angular/angular", "vuejs/core", "sveltejs/svelte", "vitejs/vite", "tailwindlabs/tailwindcss", "denoland/deno", "oven-sh/bun", "flutter/flutter", "facebook/react-native", "expo/expo", "spring-projects/spring-boot", "fastapi/fastapi", "astral-sh/uv", "pytorch/pytorch", "tensorflow/tensorflow", "huggingface/transformers", "langchain-ai/langchain", "ollama/ollama", "vllm-project/vllm", "kubernetes/kubernetes", "docker/compose", "hashicorp/terraform", "microsoft/vscode", "anthropics/claude-code", "openai/codex", "dotnet/runtime", "dotnet/aspnetcore", "dotnet/efcore", "dotnet/maui", "dotnet/aspire", "angular/angular-cli"]},
     {"id": "gh-new-repos", "name": "GitHub Trending New Repos", "type": "github_new_repos", "category": "coding", "weight": 1, "every": 180, "days": 7, "count": 25}
   ],
 
@@ -130,5 +143,41 @@
     {"id": "good-first", "name": "GitHub Good First Issues", "type": "github_good_first", "every": 360, "per_language": 8,
      "languages": ["python", "javascript", "typescript", "go", "rust", "java", "kotlin", "dart"]},
     {"id": "google-oss", "name": "Google Open Source Blog", "type": "rss", "url": "https://opensource.googleblog.com/feeds/posts/default", "kind": "program", "every": 720}
+  ],
+
+  "learn_topics": [
+    {"id": "csharp", "label": "C# / .NET", "group": ".NET", "so_tags": ["c#", ".net", "linq"]},
+    {"id": "aspnet", "label": "ASP.NET Core", "group": ".NET", "so_tags": ["asp.net-core", "entity-framework-core", "blazor"]},
+    {"id": "azure", "label": "Azure", "group": ".NET", "so_tags": ["azure", "azure-functions", "azure-devops"]},
+    {"id": "react", "label": "React", "group": "Web", "so_tags": ["reactjs", "react-hooks", "next.js"]},
+    {"id": "angular", "label": "Angular", "group": "Web", "so_tags": ["angular", "rxjs"]},
+    {"id": "javascript", "label": "JavaScript", "group": "Web", "so_tags": ["javascript"]},
+    {"id": "typescript", "label": "TypeScript", "group": "Web", "so_tags": ["typescript"]},
+    {"id": "node", "label": "Node.js", "group": "Web", "so_tags": ["node.js", "express"]},
+    {"id": "python", "label": "Python", "group": "Backend", "so_tags": ["python", "django", "fastapi", "pandas"]},
+    {"id": "java", "label": "Java", "group": "Backend", "so_tags": ["java", "spring-boot"]},
+    {"id": "sql", "label": "SQL", "group": "Backend", "so_tags": ["sql", "sql-server", "postgresql"]},
+    {"id": "go", "label": "Go", "group": "Backend", "so_tags": ["go"]},
+    {"id": "rust", "label": "Rust", "group": "Backend", "so_tags": ["rust"]},
+    {"id": "cpp", "label": "C++", "group": "Backend", "so_tags": ["c++"]},
+    {"id": "php", "label": "PHP", "group": "Backend", "so_tags": ["php", "laravel"]},
+    {"id": "kotlin", "label": "Kotlin / Android", "group": "Mobile", "so_tags": ["kotlin", "android"]},
+    {"id": "swift", "label": "Swift / iOS", "group": "Mobile", "so_tags": ["swift", "ios"]},
+    {"id": "flutter", "label": "Flutter", "group": "Mobile", "so_tags": ["flutter", "dart"]},
+    {"id": "docker", "label": "Docker / Kubernetes", "group": "Cloud", "so_tags": ["docker", "kubernetes"]},
+    {"id": "aws", "label": "AWS", "group": "Cloud", "so_tags": ["amazon-web-services"]},
+    {"id": "git", "label": "Git", "group": "Cloud", "so_tags": ["git"]},
+    {"id": "ml", "label": "AI / ML", "group": "AI", "so_tags": ["machine-learning", "pytorch", "langchain"]},
+    {"id": "system-design", "label": "System design", "group": "Architecture", "so_tags": ["architecture", "design-patterns", "microservices"]}
+  ],
+
+  "learn": [
+    {"id": "curated", "name": "TechPulse curated", "type": "curated", "path": "interview", "every": 15,
+     "_help": "Interview questions you can edit: interview/<topic-id>.md. Each '### ' heading is a question."},
+    {"id": "stackoverflow", "name": "Stack Overflow", "type": "stackoverflow", "every": 1440, "secondary_count": 10,
+     "windows": [{"mode": "qa", "days": null, "count": 25}, {"mode": "qa", "days": 365, "count": 15}, {"mode": "latest", "days": 30, "count": 15}]},
+    {"id": "react-iq", "name": "sudheerj/reactjs-interview-questions", "type": "github_markdown", "repo": "sudheerj/reactjs-interview-questions", "path": "README.md", "topic": "react", "allow_spdx": ["MIT"], "every": 10080, "max_items": 350},
+    {"id": "js-iq", "name": "123 Essential JavaScript Interview Questions", "type": "github_markdown", "repo": "ganqqwerty/123-Essential-JavaScript-Interview-Questions", "path": "README.md", "topic": "javascript", "allow_spdx": ["BSD-3-Clause"], "every": 10080},
+    {"id": "sdp", "name": "System Design Primer", "type": "sdp_solutions", "repo": "donnemartin/system-design-primer", "path": "solutions/system_design", "topic": "system-design", "license": "CC BY 4.0", "license_text": "Creative Commons Attribution 4.0", "every": 10080}
   ]
 }
