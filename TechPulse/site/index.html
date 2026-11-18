@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TechPulse</title>
+  <meta name="description" content="Latest tech, coding and AI updates, jobs and opportunities in one place.">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TechPulse">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="news">
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon.svg" alt="" width="28" height="28">
+      <div>
+        <h1>TechPulse</h1>
+        <p id="status" class="status">Loading…</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="installBtn" class="pill" hidden>Install</button>
+      <button id="refreshBtn" class="icon-btn" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+      </button>
+      <button id="settingsBtn" class="icon-btn" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="iosHint" class="hint" hidden>
+    Install on iPhone: tap <strong>Share</strong> <span aria-hidden="true">⬆︎</span> then <strong>Add to Home Screen</strong>.
+    <button class="link" id="iosHintClose">Got it</button>
+  </div>
+
+  <div class="search">
+    <input id="search" type="search" placeholder="Search news, jobs, skills, companies…" autocomplete="off">
+  </div>
+  <nav id="chips" class="chips" aria-label="Filters"></nav>
+
+  <main id="list" class="list" aria-live="polite"></main>
+  <div id="sentinel" class="sentinel"></div>
+
+  <nav class="tabs" aria-label="Sections">
+    <button data-view="news"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5"/></svg>News</button>
+    <button data-view="rising"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>Rising</button>
+    <button data-view="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></svg>Jobs</button>
+    <button data-view="opps"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.5 6 .8-4.4 4.2 1.1 6L12 16.6 6.7 19.5l1.1-6L3.4 9.3l6-.8z"/></svg>Opportunities</button>
+    <button data-view="saved"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Saved</button>
+  </nav>
+
+  <dialog id="settings" class="sheet">
+    <form method="dialog" class="sheet-head">
+      <h2>Settings</h2>
+      <button class="icon-btn" aria-label="Close">✕</button>
+    </form>
+    <div class="sheet-body">
+      <section>
+        <h3>Your skills</h3>
+        <p class="muted">Used for "Matches me" in Jobs. Separate with commas.</p>
+        <input id="skills" type="text" placeholder="e.g. python, react, aws, android">
+      </section>
+      <section>
+        <h3>Appearance</h3>
+        <div class="seg" id="theme">
+          <button data-theme="auto">Auto</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button>
+        </div>
+      </section>
+      <section>
+        <h3>Phone alerts</h3>
+        <p class="muted">Breaking updates arrive through the free <strong>ntfy</strong> app (Android &amp; iPhone).
+          Install it, tap <em>Subscribe</em>, and enter the topic name you saved as the <code>NTFY_TOPIC</code> secret during setup.</p>
+      </section>
+      <section>
+        <h3>Install as an app</h3>
+        <p class="muted"><strong>Android (Chrome):</strong> menu ⋮ → <em>Add to Home screen</em> / <em>Install app</em>.<br>
+          <strong>iPhone (Safari):</strong> Share ⬆︎ → <em>Add to Home Screen</em>.<br>
+          <strong>Windows / Mac (Chrome or Edge):</strong> install icon in the address bar.</p>
+      </section>
+      <section>
+        <h3>Sources <span id="srcSummary" class="muted"></span></h3>
+        <ul id="sources" class="sources"></ul>
+      </section>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
