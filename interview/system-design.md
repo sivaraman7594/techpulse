@@ -34,7 +34,7 @@ Hard parts: **invalidation** (TTLs, delete on update), **stampedes** when a hot 
 5. **Failure mode**: decide whether to allow or block traffic if Redis is unavailable.
 
 ### How do you make a payment API safe to retry?
-<!-- level: advanced; kind: scenario; ref: https://learn.microsoft.com/azure/architecture/patterns/transactional-outbox-cosmos -->
+<!-- level: advanced; kind: scenario; ref: https://learn.microsoft.com/azure/architecture/patterns/ -->
 Network timeouts mean clients will retry — and a retry must never charge twice.
 - **Idempotency keys**: the client sends a unique key per operation; the server stores the key with the result and returns the stored result for repeats.
 - **Transactional outbox**: write the business change and an "event to publish" in the same database transaction; a separate process publishes events. This avoids "saved but message lost".

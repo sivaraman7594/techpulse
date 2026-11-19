@@ -174,6 +174,8 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 .attrib { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
 .attrib a { color: var(--accent); }
 .card.known { opacity: .7; }
+.chapter { margin: 14px 2px 0; font-size: 15px; }
+.chapter .muted { font-size: 12px; }
 .tag.ok-tag { color: var(--good); }
 .callout { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--accent-soft); border-radius: var(--radius); padding: 12px 14px; }
 .callout strong { flex: 1 1 100%; }

@@ -17,21 +17,24 @@ const OPP_KINDS = [
 ];
 const JOB_REGIONS = [['all', 'All'], ['match', 'Matches me'], ['india', 'India'], ['remote', 'Remote'], ['global', 'Global']];
 const DOTNET_FILTERS = [['all', 'All'], ['net', '.NET & C#'], ['azure', 'Azure'], ['releases', 'Releases']];
-const LEARN_MODES = [['interview', 'Interview'], ['scenario', 'Scenario'], ['qa', 'Top Q&A'], ['latest', 'Latest'], ['todo', 'Not known yet']];
+const LEARN_MODES = [['fundamental', 'Fundamentals'], ['docs', 'Official docs'], ['interview', 'Interview'], ['scenario', 'Scenario'],
+  ['qa', 'Top Q&A'], ['latest', 'Latest'], ['todo', 'Not known yet']];
+const TRACKED = new Set(['fundamental', 'docs', 'interview']);   // modes with a "Mark known" button
 const LEVEL_ORDER = { basic: 0, intermediate: 1, advanced: 2 };
 const VIEWS = ['news', 'dotnet', 'learn', 'rising', 'jobs', 'opps', 'saved'];
 
 const urlView = new URLSearchParams(location.search).get('view');
 const state = {
   view: VIEWS.includes(urlView) ? urlView : (VIEWS.includes(store.get('view')) ? store.get('view') : 'news'),
-  filter: Object.assign({ news: 'all', dotnet: 'all', learn: 'interview', jobs: 'all', opps: 'all' }, store.get('filter', {})),
+  filter: Object.assign({ news: 'all', dotnet: 'all', learn: 'fundamental', jobs: 'all', opps: 'all' }, store.get('filter', {})),
   settings: Object.assign({ theme: 'auto', skills: '' }, store.get('settings', {})),
   saved: store.get('saved', {}),
   known: store.get('known', {}),
   learnTopic: store.get('learnTopic', 'csharp'),
   prevVisit: store.get('lastVisit', null),
   query: '',
-  meta: null, news: [], live: [], sync: null, jobs: [], opps: [], trends: [], health: [], learnIndex: null,
+  meta: null, news: [], live: store.get('live', []), liveAt: store.get('liveAt', 0), sync: null,
+  jobs: [], opps: [], trends: [], health: [], learnIndex: null,
   learnCache: {}, openLearn: new Set(),
   newsById: new Map(),
   list: [], shown: 0, openTrend: null, lastLoad: 0,
@@ -134,7 +137,7 @@ async function getJSON(name) {
 }
 
 // Returns how many news items are new, or -1 when loading failed.
-async function load({ quiet = false } = {}) {
+async function load({ quiet = false, notify = quiet } = {}) {
   setStatus('Updating…');
   try {
     const meta = await getJSON('meta.json');
@@ -152,7 +155,7 @@ async function load({ quiet = false } = {}) {
     catRx = null;
     mergeLive();
     const fresh = hadData ? state.news.filter(i => !before.has(i.id)).length : 0;
-    if (quiet && fresh) toast(`${fresh} new update${fresh > 1 ? 's' : ''}`);
+    if (notify && fresh) toast(`${fresh} new update${fresh > 1 ? 's' : ''}`);
     render();
     renderSources();
     setStatus();
@@ -171,8 +174,10 @@ async function load({ quiet = false } = {}) {
 
 function setStatus(text) {
   const m = state.meta;
+  // Live stories pulled on this device count as an update too, so show whichever is newer.
+  const newest = m && new Date(Math.max(Date.parse(m.updated) || 0, state.liveAt || 0)).toISOString();
   $('#status').textContent = text || (state.sync ? 'Syncing all sources…' : m
-    ? `Updated ${ago(m.updated)} · ${m.sources.ok}/${m.sources.total} sources live`
+    ? `Updated ${ago(newest)} · ${m.sources.ok}/${m.sources.total} sources live`
     : 'Loading…');
 }
 
@@ -190,6 +195,7 @@ const GH = 'https://api.github.com/repos/';
 const SYNC_POLL_MS = 20e3;
 const SYNC_MAX_MS = 12 * 60e3;
 const SYNC_MIN_GAP_MS = 5 * 60e3;
+const AUTO_SYNC_AGE_MS = 20 * 60e3;   // opening the app starts a full sync when server data is older than this
 const LIVE_KEEP_MS = 12 * 3600e3;
 
 const normUrl = u => {
@@ -245,15 +251,16 @@ function mergeLive() {
     ids.add(i.id);
     return true;
   });
+  store.set('live', state.live);   // survives closing the app
   state.news = [...state.live, ...server].sort((a, b) => itemTime(b).localeCompare(itemTime(a)));
   state.newsById = new Map(state.news.map(i => [i.id, i]));
 }
 
-async function startSync() {
+async function startSync(minAge = SYNC_MIN_GAP_MS) {
   const token = store.get('ghToken', '');
   if (!token || !REPO) return 'notoken';
   if (state.sync) return 'running';
-  if (state.meta && Date.now() - Date.parse(state.meta.updated) < SYNC_MIN_GAP_MS) return 'fresh';
+  if (state.meta && Date.now() - Date.parse(state.meta.updated) < minAge) return 'fresh';
   if (Date.now() - store.get('lastDispatch', 0) < SYNC_MIN_GAP_MS) { pollSync(); return 'running'; }
   try {
     const r = await fetch(`${GH}${REPO}/actions/workflows/update.yml/dispatches`, {
@@ -296,20 +303,28 @@ function stopSync() {
   setStatus();
 }
 
-async function refresh() {
+// auto: runs when the app opens or comes back to the foreground — same work, fewer messages.
+async function refresh({ auto = false } = {}) {
   const btn = $('#refreshBtn');
   if (btn.classList.contains('spin')) return;
   btn.classList.add('spin');
   try {
-    const [fresh, live] = await Promise.all([load(), fetchLive().catch(() => [])]);
+    const [fresh, live] = await Promise.all([load({ quiet: auto, notify: false }), fetchLive().catch(() => [])]);
+    if (live.length) { state.liveAt = Date.now(); store.set('liveAt', state.liveAt); }
     const before = new Set(state.live.map(i => i.id));
     state.live = [...state.live, ...live];
     mergeLive();
     const added = state.live.filter(i => !before.has(i.id)).length;
     if (added) render();
-    const sync = await startSync();
+    setStatus();
+    const sync = await startSync(auto ? AUTO_SYNC_AGE_MS : SYNC_MIN_GAP_MS);
     const n = Math.max(fresh, 0) + added;
     const got = n ? `${n} new update${n > 1 ? 's' : ''}` : '';
+    if (auto) {
+      if (sync === 'started') toast(`${got ? got + ' · ' : ''}Syncing all sources in the background…`);
+      else if (n && state.prevVisit) toast(got);
+      return;
+    }
     const stale = state.meta && Date.now() - Date.parse(state.meta.updated) > 30 * 60e3;
     if (sync === 'started' || sync === 'running') toast(`${got ? got + ' · ' : ''}Syncing all sources — about 3 min`);
     else if (sync === 'denied') toast('GitHub refused the sync — check the token in Settings');
@@ -366,12 +381,15 @@ function buildList() {
       const items = state.learnCache[state.learnTopic] || [];
       const byLevel = (a, b) => (LEVEL_ORDER[a.level] ?? 1) - (LEVEL_ORDER[b.level] ?? 1);
       const byScore = (a, b) => (b.score || 0) - (a.score || 0);
-      if (f === 'interview') list = items.filter(i => i.mode === 'interview').sort(byLevel);
+      const byCourse = (a, b) => (a.sid || '').localeCompare(b.sid || '') || (a.order ?? 0) - (b.order ?? 0);
+      if (f === 'fundamental' || f === 'docs') list = items.filter(i => i.mode === f).sort(byCourse);
+      else if (f === 'interview') list = items.filter(i => i.mode === 'interview').sort(byLevel);
       else if (f === 'scenario') list = items.filter(i => i.scenario).sort((a, b) =>
         (a.mode === 'interview' ? 0 : 1) - (b.mode === 'interview' ? 0 : 1) || byScore(a, b));
       else if (f === 'qa') list = items.filter(i => i.mode === 'qa').sort(byScore);
       else if (f === 'latest') list = items.filter(i => i.mode === 'latest').sort((a, b) => itemTime(b).localeCompare(itemTime(a)));
-      else if (f === 'todo') list = items.filter(i => i.mode === 'interview' && !state.known[i.id]).sort(byLevel);
+      else if (f === 'todo') list = items.filter(i => TRACKED.has(i.mode) && !state.known[i.id])
+        .sort((a, b) => LEARN_MODES.findIndex(m => m[0] === a.mode) - LEARN_MODES.findIndex(m => m[0] === b.mode) || byCourse(a, b));
       else list = items;
       break;
     }
@@ -428,6 +446,7 @@ function render() {
   if (state.view === 'learn') main.append(learnNote());
   state.list = buildList();
   state.shown = 0;
+  state.lastChapter = null;
   if (!state.list.length) {
     main.append(h('div', { class: 'empty' }, emptyText()));
     return;
@@ -463,7 +482,9 @@ function openLearn(topic, mode) {
 
 function dotnetCallout() {
   return h('div', { class: 'callout' },
-    h('strong', null, 'Prepare for .NET interviews'),
+    h('strong', null, 'Learn and prepare for .NET interviews'),
+    h('button', { class: 'chip', onclick: () => openLearn('csharp', 'fundamental') }, 'C# course ›'),
+    h('button', { class: 'chip', onclick: () => openLearn('aspnet', 'fundamental') }, 'ASP.NET Core course ›'),
     h('button', { class: 'chip', onclick: () => openLearn('csharp', 'interview') }, 'C# interview ›'),
     h('button', { class: 'chip', onclick: () => openLearn('aspnet', 'interview') }, 'ASP.NET Core ›'),
     h('button', { class: 'chip', onclick: () => openLearn('azure', 'scenario') }, 'Azure scenarios ›'),
@@ -472,14 +493,20 @@ function dotnetCallout() {
 
 function learnNote() {
   const items = state.learnCache[state.learnTopic] || [];
-  const interview = items.filter(i => i.mode === 'interview');
-  const known = interview.filter(i => state.known[i.id]).length;
+  const progress = mode => {
+    const all = items.filter(i => i.mode === mode);
+    return `You know ${all.filter(i => state.known[i.id]).length} of ${all.length}.`;
+  };
+  const tracked = items.filter(i => TRACKED.has(i.mode));
+  const chapters = new Set(items.filter(i => i.mode === 'fundamental').map(i => i.chapter)).size;
   const notes = {
-    interview: `Curated answers checked against official docs, plus open-licensed collections. You know ${known} of ${interview.length}.`,
+    fundamental: `Complete course from basics to advanced in ${chapters} chapters — each concept links to the official docs. ${progress('fundamental')}`,
+    docs: `Pages from the official documentation, refreshed daily and shown under their open license. ${progress('docs')}`,
+    interview: `Curated answers checked against official docs, plus open-licensed collections. ${progress('interview')}`,
     scenario: '"How would you…" questions: troubleshooting, design and real-world situations.',
     qa: 'Highest-voted Stack Overflow questions with accepted answers. Tap to read the answer.',
     latest: 'Recent Stack Overflow questions (last 30 days) that already have an accepted answer.',
-    todo: `Interview questions you haven't marked as known yet (${interview.length - known} left).`,
+    todo: `Concepts and questions you haven't marked as known yet (${tracked.filter(i => !state.known[i.id]).length} left).`,
   };
   return h('p', { class: 'section-note' }, notes[state.filter.learn] || '');
 }
@@ -499,7 +526,16 @@ function emptyText() {
 function more() {
   const main = $('#list');
   const slice = state.list.slice(state.shown, state.shown + PAGE);
-  for (const item of slice) main.append(card(item));
+  const course = state.view === 'learn' && ['fundamental', 'docs'].includes(state.filter.learn);
+  for (const item of slice) {
+    const chapter = course && item.chapter ? `${item.sid}|${item.chapter}` : null;
+    if (chapter && chapter !== state.lastChapter) {
+      main.append(h('h3', { class: 'chapter' }, item.chapter,
+        state.filter.learn === 'docs' ? h('span', { class: 'muted' }, ` · ${item.source}`) : null));
+      state.lastChapter = chapter;
+    }
+    main.append(card(item));
+  }
   state.shown += slice.length;
 }
 
@@ -516,7 +552,7 @@ function topicChip(t) {
   return h('button', {
     class: 'chip', 'aria-pressed': String(state.learnTopic === t.id),
     onclick: () => { state.learnTopic = t.id; store.set('learnTopic', t.id); render(); window.scrollTo({ top: 0 }); },
-  }, t.label, h('span', { class: 'n' }, (c.interview || 0) + (c.qa || 0) + (c.latest || 0)));
+  }, t.label, h('span', { class: 'n' }, ['fundamental', 'docs', 'interview', 'qa', 'latest'].reduce((n, k) => n + (c[k] || 0), 0)));
 }
 
 function renderChips() {
@@ -530,11 +566,13 @@ function renderChips() {
     for (const t of topics) bar.append(topicChip(t));
     const items = state.learnCache[state.learnTopic];
     const counts = items && {
+      fundamental: items.filter(i => i.mode === 'fundamental').length,
+      docs: items.filter(i => i.mode === 'docs').length,
       interview: items.filter(i => i.mode === 'interview').length,
       scenario: items.filter(i => i.scenario).length,
       qa: items.filter(i => i.mode === 'qa').length,
       latest: items.filter(i => i.mode === 'latest').length,
-      todo: items.filter(i => i.mode === 'interview' && !state.known[i.id]).length,
+      todo: items.filter(i => TRACKED.has(i.mode) && !state.known[i.id]).length,
     };
     for (const [v, l] of LEARN_MODES) {
       const b = chip(l, v, counts ? counts[v] : null);
@@ -605,7 +643,7 @@ function renderBlocks(blocks) {
   return out;
 }
 
-const MODE_LABEL = { interview: 'Interview', qa: 'Q&A', latest: 'Latest Q&A' };
+const MODE_LABEL = { fundamental: 'Fundamentals', docs: 'Official docs', interview: 'Interview', qa: 'Q&A', latest: 'Latest Q&A' };
 
 function learnCard(i) {
   const open = state.openLearn.has(i.id);
@@ -636,9 +674,12 @@ function learnCard(i) {
       `Answer by ${i.author || 'a Stack Overflow user'} · ▲ ${(i.answer_score ?? 0).toLocaleString()} · `,
       h('a', { href: i.answer_url || i.url, target: '_blank', rel: 'noopener' }, 'Stack Overflow'),
       ` · ${i.license}`);
-  } else if (i.sid === 'curated') {
+  } else if (i.author === 'TechPulse') {
     attribution = h('p', { class: 'attrib' }, 'TechPulse curated · ',
-      h('a', { href: i.ref || i.url, target: '_blank', rel: 'noopener' }, 'Official docs ›'));
+      h('a', { href: i.ref || i.url, target: '_blank', rel: 'noopener' }, i.ref ? 'Official docs ›' : 'Source ›'));
+  } else if (i.mode === 'docs') {
+    attribution = h('p', { class: 'attrib' }, `From the official ${i.source} (${i.author || 'docs'}) · ${i.license} · `,
+      h('a', { href: i.url, target: '_blank', rel: 'noopener' }, 'Read the full page ›'));
   } else {
     attribution = h('p', { class: 'attrib' }, `From `,
       h('a', { href: i.url, target: '_blank', rel: 'noopener' }, i.source),
@@ -662,7 +703,7 @@ function learnCard(i) {
       isSO ? h('span', { class: 'tag ok-tag' }, '✓ accepted') : null,
       i.score ? h('span', { class: 'tag' }, `▲ ${i.score.toLocaleString()}`) : null,
       h('span', { class: 'spacer' }),
-      i.mode === 'interview' ? knownBtn : null,
+      TRACKED.has(i.mode) ? knownBtn : null,
       actions(i)));
   return el;
 }
@@ -898,7 +939,7 @@ function init() {
 
   // Keep fresh: check on return to the app and periodically while open.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && Date.now() - state.lastLoad > 60e3) load({ quiet: true });
+    if (document.visibilityState === 'visible' && Date.now() - state.lastLoad > 60e3) refresh({ auto: true });
   });
   setInterval(() => { if (document.visibilityState === 'visible') load({ quiet: true }); }, CHECK_EVERY_MS);
   setInterval(() => setStatus(), 60e3);
@@ -906,7 +947,7 @@ function init() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
   $('#list').replaceChildren(...Array.from({ length: 5 }, () => h('div', { class: 'skeleton' })));
-  load();
+  refresh({ auto: true });
 }
 
 init();

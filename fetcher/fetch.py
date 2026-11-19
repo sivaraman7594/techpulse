@@ -18,6 +18,7 @@ import hashlib
 import html
 import json
 import os
+import posixpath
 import re
 import sys
 import textwrap
@@ -887,19 +888,41 @@ def a_sdp_solutions(src):
 
 
 def a_curated(src):
-    """interview/<topic>.md — '### Question' then an optional <!-- level: …; kind: …; ref: … --> line, then the answer."""
+    """<path>/<topic>[--part].md, read in file-name order. '## Chapter' lines group items; each item is
+    '### Title', an optional <!-- level: …; kind: …; ref: … --> line, then markdown. Code fences are respected."""
     folder = os.path.join(ROOT, src.get("path", "interview"))
+    mode = src.get("mode", "interview")
+    by_topic = {}
+    for fname in sorted(f for f in os.listdir(folder) if f.endswith(".md")):
+        by_topic.setdefault(fname[:-3].split("--")[0], []).append(fname)
+    repo = ENV("GITHUB_REPOSITORY")
 
-    def one(fname):
-        topic = os.path.splitext(fname)[0]
+    def one(topic):
         if topic not in LEARN_TOPICS:
             raise ValueError(f"'{topic}' is not a learn_topics id")
-        with open(os.path.join(folder, fname), encoding="utf-8") as f:
-            text = f.read()
+        items, chapter = [], None
+        for fname in by_topic[topic]:
+            with open(os.path.join(folder, fname), encoding="utf-8") as f:
+                lines = f.read().split("\n")
+            fallback = f"https://github.com/{repo}/blob/main/{src.get('path', 'interview')}/{fname}" if repo else ""
+            cur, fence = None, False
+            for line in lines + ["## "]:   # sentinel flushes the last item
+                if line.strip().startswith(("```", "~~~")):
+                    fence = not fence
+                head = None if fence else re.match(r"^(#{2,3})\s+(.*)$", line)
+                if head:
+                    if cur:
+                        items.append(cur)
+                        cur = None
+                    if head.group(1) == "##":
+                        chapter = md_inline(head.group(2)) or chapter
+                    else:
+                        cur = {"title": md_inline(head.group(2)), "chapter": chapter, "body": [], "fallback": fallback}
+                elif cur:
+                    cur["body"].append(line)
         out = []
-        for chunk in re.split(r"^###\s+", text, flags=re.M)[1:]:
-            heading, _, body = chunk.partition("\n")
-            meta = {}
+        for n, it in enumerate(items, 1):
+            body, meta = "\n".join(it["body"]), {}
             m = re.search(r"<!--(.*?)-->", body, re.S)
             if m:
                 for part in m.group(1).split(";"):
@@ -907,11 +930,320 @@ def a_curated(src):
                     meta[k.strip().lower()] = v.strip()
                 body = body[:m.start()] + body[m.end():]
             ref = meta.get("ref") or ""
-            out.append(learn_item(src, topic, "interview", md_inline(heading), ref, md_blocks(body, 5000),
+            out.append(learn_item(src, topic, mode, it["title"], ref or it["fallback"], md_blocks(body, 6000),
                                   scenario=meta.get("kind") == "scenario", level=meta.get("level"), ref=ref,
+                                  chapter=it["chapter"] if mode != "interview" else None, order=n,
                                   author="TechPulse", license="Reviewed against official docs"))
         return out
-    return fan_out(one, sorted(f for f in os.listdir(folder) if f.endswith(".md")), 4)
+    return fan_out(one, sorted(by_topic), 4)
+
+
+# ---------------------------------------------------------------- learn: official documentation
+#
+# Open-licensed official docs, read straight from their GitHub repos so the course stays as current
+# as the docs. Each page becomes one card per section, in course order. The repo's license is checked
+# on every run; a source whose license no longer matches is skipped.
+
+TAG_LINE_RX = re.compile(r"^\s*(?:</?[A-Za-z][\w.:-]*(?:\s[^<>]*)?/?>\s*)+$")
+SHORTCODE_RX = re.compile(r"\{\{[<%].*?[%>]\}\}|\{\{#\w+[^}]*\}\}|\{%-?.*?-?%\}")
+MDN_MACRO_RX = re.compile(r"\{\{\s*\w+\(\s*\"([^\"]*)\"(?:\s*,\s*\"([^\"]*)\")?[^}]*\)\s*\}\}")
+RST_UNDERLINE_RX = re.compile(r"([=\-~^*#\"'+`])\1{2,}")
+RST_ROLE_RX = re.compile(r":[\w:+.-]+:`([^`<]*?)(?:\s*<[^>]*>)?`")
+
+
+def raw_text(repo, branch, path):
+    quoted = "/".join(urllib.parse.quote(p) for p in path.split("/"))
+    return http_get(f"https://raw.githubusercontent.com/{repo}/{branch}/{quoted}").decode("utf-8", "replace")
+
+
+def check_doc_license(src):
+    info, spdx = repo_info(src["repo"], src.get("allow_spdx"))
+    branch = src.get("branch") or info["default_branch"]
+    if src.get("license_text"):
+        text = raw_text(src["repo"], branch, src.get("license_file", "LICENSE"))
+        if src["license_text"].lower() not in text.lower():
+            raise RuntimeError("license notice not found — skipped to respect copyright")
+    return branch
+
+
+def outside_code(line, fn):
+    """Apply fn to the prose parts of a line, leaving `inline code` untouched."""
+    parts = re.split(r"(`[^`]*`)", line)
+    return "".join(fn(p) if n % 2 == 0 else p for n, p in enumerate(parts))
+
+
+def rst_to_md(text):
+    """Enough reStructuredText for tutorials: titles, literal/code blocks, admonitions, roles, lists."""
+    lines, out, levels, i = text.split("\n"), [], [], 0
+
+    def inline(s):
+        s = RST_ROLE_RX.sub(lambda m: "`" + m.group(1).strip().lstrip("~!") + "`", s)
+        s = re.sub(r"``(.+?)``", r"`\1`", s)
+        s = re.sub(r"`([^`<]+?)\s*<[^>]+>`__?", r"\1", s)
+        return re.sub(r"^(\s*)#\.\s", r"\g<1>1. ", s)
+
+    def heading(key, title):
+        if key not in levels:
+            levels.append(key)
+        out.extend(["", "#" * min(len(levels), 4) + " " + inline(title.strip()), ""])
+
+    def indented_block(j):
+        block = []
+        while j < len(lines) and (not lines[j].strip() or lines[j][:1] in " \t"):
+            block.append(lines[j])
+            j += 1
+        return textwrap.dedent("\n".join(block)).strip("\n"), j
+
+    while i < len(lines):
+        line, s = lines[i], lines[i].strip()
+        nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        if s and RST_UNDERLINE_RX.fullmatch(s) and i + 2 < len(lines) and lines[i + 2].strip() == s:
+            heading(s[0] + "o", lines[i + 1])
+            i += 3
+        elif s and line[:1] not in " \t" and RST_UNDERLINE_RX.fullmatch(nxt or "-") and nxt and len(nxt) >= len(s) - 2:
+            heading(nxt[0], s)
+            i += 2
+        elif s.startswith(".. "):
+            m = re.match(r"\.\.\s+([\w-]+)::\s*(.*)", s)
+            body, i = indented_block(i + 1)
+            body = re.sub(r"\A(?:\s*:[\w-]+:.*\n?)+", "", body).strip("\n")   # directive options
+            kind = m.group(1) if m else ""
+            if kind in ("code-block", "sourcecode", "code", "doctest", "testcode") and body:
+                out.extend(["```" + (m.group(2) or ""), body, "```", ""])
+            elif kind in ("note", "warning", "tip", "important", "seealso", "hint", "caution", "attention"):
+                out.extend([f"{kind.title()}: {inline(m.group(2))}"] + [inline(x) for x in body.split("\n")] + [""])
+        elif s.startswith(">>> ") and line[:1] not in " \t":
+            block = []
+            while i < len(lines) and lines[i].strip():
+                block.append(lines[i])
+                i += 1
+            out.extend(["```python", "\n".join(block), "```", ""])
+        elif s.endswith("::"):
+            prose = s[:-2].rstrip()
+            if prose:
+                out.append(inline(line.rstrip()[:-1]))
+            body, i = indented_block(i + 1)
+            if body:
+                out.extend(["", "```", body, "```", ""])
+        else:
+            out.append(inline(line))
+            i += 1
+    return "\n".join(out)
+
+
+def code_region(code, region=None, line_range=None):
+    lines = code.split("\n")
+    if region:
+        rx = re.escape(region)
+        start = next((n for n, x in enumerate(lines) if re.search(rf"<{rx}>|#region\s+{rx}\b", x, re.I)), None)
+        if start is None:
+            return None
+        end = next((n for n in range(start + 1, len(lines))
+                    if re.search(rf"</{rx}>|#endregion", lines[n], re.I)), len(lines))
+        lines = lines[start + 1:end]
+    elif line_range:
+        a, _, b = line_range.partition("-")
+        lines = lines[int(a) - 1:int(b or a)]
+    lines = [x for x in lines if not re.match(r"^\s*(//|#|'|<!--)\s*</?[\w.-]+>\s*(-->)?\s*$|^\s*#(end)?region\b", x)]
+    return textwrap.dedent("\n".join(lines)).strip("\n")[:1500]
+
+
+def doc_clean(md, src, repo, branch, path):
+    """Normalise one docs page to plain markdown. Returns (front-matter title, markdown)."""
+    title = None
+    fm = re.match(r"\A---\s*\n(.*?)\n---\s*\n", md, re.S)
+    if fm:
+        t = re.search(r"^title:\s*(.+)$", fm.group(1), re.M)
+        title = t.group(1).strip().strip("'\"") if t else None
+        md = md[fm.end():]
+    t = re.search(r"^\[//\]: # \(title:\s*(.+?)\)\s*$", md, re.M)   # Writerside (Kotlin docs)
+    title = title or (t.group(1) if t else None)
+    md = re.sub(r"<!--.*?-->", "", md, flags=re.S)
+    md = re.sub(r"<docs-code\b([^>]*?)(?<!/)>(.*?)</docs-code>",            # Angular inline code samples
+                lambda m: "\n```\n" + html.unescape(textwrap.dedent(m.group(2)).strip("\n")) + "\n```\n", md, flags=re.S)
+    flavor = src.get("flavor", "")
+    snippets = {"n": 0}
+
+    def snippet(ref, region=None, line_range=None):
+        if snippets["n"] >= 12:
+            return None
+        snippets["n"] += 1
+        ref = ref.split("?")[0]
+        if ref.startswith("~/"):
+            cands = [ref[2:], posixpath.join(src.get("root", ""), ref[2:])]
+        else:
+            cands = [posixpath.normpath(posixpath.join(posixpath.dirname(path), ref))]
+        for c in cands:
+            try:
+                return code_region(raw_text(repo, branch, c), region, line_range)
+            except Exception:
+                continue
+        return None
+
+    out, fence, skip_fence, moniker_skip, zone_seen, zone_skip = [], None, False, False, False, False
+    for line in md.split("\n"):
+        s = line.strip()
+        if fence:
+            if s.startswith(fence):
+                fence = None
+                if not skip_fence:
+                    out.append(line)
+            elif not skip_fence and not re.match(r"\s*//\s*(@\w+|\^\?|---cut)", line):   # TypeScript twoslash markers
+                out.append(line)
+            continue
+        if s.startswith(("```", "~~~")):
+            fence, info = s[:3], s[3:].lower()
+            skip_fence = moniker_skip or zone_skip or "hidden" in info or ".css" in info
+            if not skip_fence:
+                out.append(line)
+            continue
+        m = re.match(r':::\s*moniker\s+range="([^"]*)"', s)
+        if m:
+            moniker_skip = not m.group(1).strip().startswith(">=")   # keep only the newest version's text
+            continue
+        if s.startswith(":::") and "moniker-end" in s:
+            moniker_skip = False
+            continue
+        if re.match(r":::\s*zone\s", s):
+            zone_skip, zone_seen = zone_seen, True                   # keep the first pivot only
+            continue
+        if s.startswith(":::") and "zone-end" in s:
+            zone_skip = False
+            continue
+        if moniker_skip or zone_skip:
+            continue
+        m = re.match(r":::\s*code\s+(.*?):::", s)
+        m2 = re.match(r">?\s*\[!code-(\w+)\[[^\]]*\]\(([^)#\s]+)(?:#([\w-]+))?[^)]*\)\]", s)
+        if m or m2:
+            if m:
+                attrs = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1)))
+                lang, ref, region, rng = attrs.get("language", ""), attrs.get("source", ""), attrs.get("id"), attrs.get("range")
+            else:
+                lang, ref, region, rng = m2.group(1), m2.group(2), m2.group(3), None
+            code = snippet(ref, region, rng) if ref else None
+            if code:
+                out.extend(["```" + lang, code, "```"])
+            continue
+        if s.startswith(":::") or re.match(r">?\s*\[!(INCLUDE|div|VIDEO)", s, re.I) or s.startswith("[//]: #"):
+            continue
+        if re.fullmatch(r"\{[^{}]*=[^{}]*\}", s) or re.match(r"^@\w+\s*[({]", s) or TAG_LINE_RX.match(line):
+            continue
+        line = re.sub(r"^(\s*)>\s?", r"\1", line)
+        line = re.sub(r"\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]", lambda x: x.group(1).title() + ":", line)
+        line = SHORTCODE_RX.sub("", line)
+        if flavor in ("mdn", "liquid"):
+            line = outside_code(line, lambda p: re.sub(r"\{\{[^{}]*\}\}", "", MDN_MACRO_RX.sub(
+                lambda x: x.group(2) or x.group(1).split("/")[-1], p)))
+        line = re.sub(r"<doc:([^>#]+)[^>]*>", lambda x: re.sub(r"(?<=[a-z])(?=[A-Z])", " ", x.group(1)), line)
+        out.append(line.replace("``", "`") if "```" not in line else line)
+    return title, "\n".join(out)
+
+
+def doc_sections(md, level=2):
+    """Split into (page title, [(chapter, heading, body)]): one entry per heading of the given level."""
+    title, chapter, sections, cur, buf, fence = None, None, [], None, [], False
+    for line in md.split("\n"):
+        if line.strip().startswith(("```", "~~~")):
+            fence = not fence
+        m = None if fence else re.match(r"^(#{1,4})\s+(.+?)\s*#*\s*$", line)
+        if m:
+            depth = len(m.group(1))
+            if depth == 1 and title is None and not sections and not "".join(buf).strip():
+                title = m.group(2)
+                continue
+            if depth < level and level > 2:
+                sections.append((chapter, cur, buf))
+                chapter, cur, buf = m.group(2), None, []
+                continue
+            if depth == level:
+                sections.append((chapter, cur, buf))
+                cur, buf = m.group(2), []
+                continue
+        buf.append(line)
+    sections.append((chapter, cur, buf))
+    return title, [(c, h, "\n".join(b)) for c, h, b in sections]
+
+
+def doc_files(src, branch):
+    """Ordered (path, chapter) list from a table of contents and/or explicit paths ("dir/" = every page inside)."""
+    ext = ".rst" if src.get("format") == "rst" else ".md"
+    files = []
+    if src.get("toc"):
+        toc, base, chapter = raw_text(src["repo"], branch, src["toc"]), posixpath.dirname(src["toc"]), None
+        if src.get("toc_rx"):
+            files += [(src["toc_file"].format(m.group(1)), None) for m in re.finditer(src["toc_rx"], toc)]
+        else:   # mdBook SUMMARY.md: top-level entries become chapters
+            for m in re.finditer(r"^(\s*)[-*]\s*\[([^\]]+)\]\(([^)#\s]+\.md)\)", toc, re.M):
+                if not m.group(1):
+                    chapter = md_inline(m.group(2))
+                files.append((posixpath.normpath(posixpath.join(base, m.group(3))), chapter))
+    for p in src.get("paths", []):
+        if p.endswith("/"):
+            tree = get_json(f"https://api.github.com/repos/{src['repo']}/git/trees/"
+                            f"{urllib.parse.quote(branch + ':' + p.rstrip('/'), safe=':/')}?recursive=1", gh_headers())
+            files += [(p + e["path"], None) for e in sorted(tree.get("tree", []), key=lambda e: e["path"])
+                      if e.get("type") == "blob" and e["path"].endswith(ext)]
+        else:
+            files.append((p, None))
+    excl = re.compile(src["exclude"]) if src.get("exclude") else None
+    seen, out = set(), []
+    for path, chapter in files:
+        if path not in seen and not (excl and excl.search(path)):
+            seen.add(path)
+            out.append((path, chapter))
+    return out[: src.get("max_files", 80)]
+
+
+def doc_url(src, branch, path, anchor):
+    w = src.get("web")
+    if not w:
+        url = f"https://github.com/{src['repo']}/blob/{branch}/{urllib.parse.quote(path)}"
+        return url + (f"#{anchor}" if anchor else "")
+    rel = path
+    for prefix in w.get("strip", []):
+        if rel.startswith(prefix):
+            rel = rel[len(prefix):]
+            break
+    rel = re.sub(r"\.(md|rst)$", "", rel)
+    rel = re.sub(r"(^|/)_?index$", "", rel)
+    if w.get("lower"):
+        rel = rel.lower()
+    url = w["base"] + rel + (w.get("suffix", "") if rel else "")
+    return url + (f"#{anchor}" if anchor else "")
+
+
+def a_docs(src):
+    branch = check_doc_license(src)
+    files = doc_files(src, branch)
+    if not files:
+        raise RuntimeError("no pages found — the docs may have moved")
+    split = src.get("split", 2)
+    index = {path: (n, chapter) for n, (path, chapter) in enumerate(files)}
+
+    def one(path):   # parts are page paths, so a page that fails keeps its previous cards
+        n, toc_chapter = index[path]
+        text = raw_text(src["repo"], branch, path)
+        if src.get("format") == "rst":
+            text = rst_to_md(text)
+        fm_title, text = doc_clean(text, src, src["repo"], branch, path)
+        title, sections = doc_sections(text, split)
+        page = md_inline(fm_title or title or posixpath.basename(posixpath.dirname(path) if
+                         re.search(r"(^|/)_?index\.", path) else path).rsplit(".", 1)[0].replace("-", " ").replace("_", " "))
+        out, anchors = [], {}
+        for k, (chapter, head, body) in enumerate(sections):
+            blocks = md_blocks(body, 5000)
+            if sum(len(b.get("x", "")) for b in blocks) < 160:
+                continue
+            name = md_inline(head) if head else page
+            anchor = gh_anchor(head) if head else ""
+            if anchor:
+                anchors[anchor] = anchors.get(anchor, -1) + 1
+                anchor += f"-{anchors[anchor]}" if anchors[anchor] else ""
+            out.append(learn_item(src, src["topic"], "docs", name, doc_url(src, branch, path, anchor), blocks,
+                                  scenario=False, chapter=md_inline(chapter) if chapter else (toc_chapter or page),
+                                  order=n * 1000 + k, license=src.get("license"), author=src.get("org")))
+        return out
+    return fan_out(one, list(index), 6)
 
 
 ADAPTERS = {
@@ -922,7 +1254,7 @@ ADAPTERS = {
     "greenhouse": a_greenhouse, "lever": a_lever, "ashby": a_ashby,
     "devpost": a_devpost, "confs_tech": a_confs_tech, "github_good_first": a_github_good_first,
     "stackoverflow": a_stackoverflow, "github_markdown": a_github_markdown, "sdp_solutions": a_sdp_solutions,
-    "curated": a_curated,
+    "curated": a_curated, "docs": a_docs,
 }
 GROUPS = ("news", "jobs", "opportunities", "learn")
 
@@ -1230,6 +1562,8 @@ def main():
         items = by_topic.get(tid, [])
         write(f"learn/{tid}.json", {"updated": iso(NOW), "topic": tid, "items": items})
         topics_out.append({"id": tid, "label": t["label"], "group": t.get("group", ""), "counts": {
+            "fundamental": sum(1 for i in items if i["mode"] == "fundamental"),
+            "docs": sum(1 for i in items if i["mode"] == "docs"),
             "interview": sum(1 for i in items if i["mode"] == "interview"),
             "scenario": sum(1 for i in items if i.get("scenario")),
             "qa": sum(1 for i in items if i["mode"] == "qa"),

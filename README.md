@@ -31,6 +31,12 @@ site/data/*.json ──► GitHub Pages ──► app on your phone (cached for 
   and .NET / ASP.NET Core / EF Core / MAUI / Aspire releases.
 - **Learn:** pick a language (23 of them, including C#/.NET, ASP.NET Core, Azure, React, Angular,
   Python, Java, SQL, Go and more), then a mode:
+  - **Fundamentals:** a complete course from basics to advanced, chapter by chapter
+    (`fundamentals/<topic>--NN.md`). Each concept has an explanation, example code, pitfalls and a
+    link to the official docs.
+  - **Official docs:** sections of the official documentation (Microsoft Learn, MDN, react.dev,
+    angular.dev, Python, Kotlin, Swift, Rust by Example, Docker, Kubernetes, Dart, Flutter, Go and more), pulled
+    daily from their open-licensed repositories. The license is checked on every run.
   - **Interview:** curated answers linked to official docs, plus open-licensed collections (React: MIT,
     JavaScript: BSD, System Design Primer: CC BY 4.0). The fetcher checks each repo's license before using it.
   - **Scenario:** "how would you…" troubleshooting and design questions.
