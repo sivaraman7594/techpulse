@@ -436,7 +436,9 @@ function render() {
   const main = $('#list');
   main.replaceChildren();
   state.list = [];
+  document.body.toggleAttribute('data-guide', state.view === 'learn' && state.learnTopic === GUIDE.id);
   if (state.view === 'rising') { renderTrends(main); return; }
+  if (state.view === 'learn' && state.learnTopic === GUIDE.id) { main.append(...guideView()); return; }
   if (state.view === 'learn' && !state.learnCache[state.learnTopic]) {
     main.append(...Array.from({ length: 4 }, () => h('div', { class: 'skeleton' })));
     loadTopic(state.learnTopic);
@@ -480,6 +482,37 @@ function openLearn(topic, mode) {
   setView('learn');
 }
 
+// The Azure From Zero guide is a self-contained interactive course (site/azure-from-zero/),
+// shown inside the Learn tab in a same-origin frame so its quizzes, flashcards and progress keep working.
+const GUIDE = { id: 'afz', label: '★ Azure From Zero', src: 'azure-from-zero/index.html' };
+
+function guideView() {
+  const frame = h('iframe', { class: 'guide', src: GUIDE.src, title: 'Azure From Zero', loading: 'eager' });
+  const fit = () => {
+    const tabs = $('.tabs').getBoundingClientRect().height;
+    frame.style.height = `${Math.max(320, window.innerHeight - frame.getBoundingClientRect().top - tabs - 12)}px`;
+  };
+  frame.addEventListener('load', () => { syncGuideTheme(frame); fit(); });
+  requestAnimationFrame(fit);
+  window.removeEventListener('resize', guideView.fit || (() => {}));
+  guideView.fit = fit;
+  window.addEventListener('resize', fit);
+  return [
+    h('p', { class: 'section-note' }, 'Your complete Azure course: chapters, quizzes, services, glossary, labs, drills and exam. ',
+      h('a', { href: GUIDE.src, target: '_blank', rel: 'noopener' }, 'Open full screen ›')),
+    frame,
+  ];
+}
+
+function syncGuideTheme(frame = $('iframe.guide')) {
+  try {
+    const root = frame && frame.contentDocument && frame.contentDocument.documentElement;
+    if (!root) return;
+    if (state.settings.theme === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', state.settings.theme);
+  } catch { /* frame not ready */ }
+}
+
 function dotnetCallout() {
   return h('div', { class: 'callout' },
     h('strong', null, 'Learn and prepare for .NET interviews'),
@@ -488,7 +521,8 @@ function dotnetCallout() {
     h('button', { class: 'chip', onclick: () => openLearn('csharp', 'interview') }, 'C# interview ›'),
     h('button', { class: 'chip', onclick: () => openLearn('aspnet', 'interview') }, 'ASP.NET Core ›'),
     h('button', { class: 'chip', onclick: () => openLearn('azure', 'scenario') }, 'Azure scenarios ›'),
-    h('button', { class: 'chip', onclick: () => openLearn('csharp', 'qa') }, 'Top C# Q&A ›'));
+    h('button', { class: 'chip', onclick: () => openLearn('csharp', 'qa') }, 'Top C# Q&A ›'),
+    h('button', { class: 'chip', onclick: () => openLearn(GUIDE.id, state.filter.learn) }, 'Azure From Zero ›'));
 }
 
 function learnNote() {
@@ -560,9 +594,13 @@ function renderChips() {
   const modes = $('#chips2');
   bar.replaceChildren();
   modes.replaceChildren();
-  modes.hidden = state.view !== 'learn';
+  modes.hidden = state.view !== 'learn' || state.learnTopic === GUIDE.id;
   if (state.view === 'learn') {
     const topics = (state.learnIndex && state.learnIndex.topics) || [];
+    bar.append(h('button', {
+      class: 'chip', 'aria-pressed': String(state.learnTopic === GUIDE.id),
+      onclick: () => { state.learnTopic = GUIDE.id; store.set('learnTopic', GUIDE.id); render(); window.scrollTo({ top: 0 }); },
+    }, GUIDE.label));
     for (const t of topics) bar.append(topicChip(t));
     const items = state.learnCache[state.learnTopic];
     const counts = items && {
@@ -915,7 +953,7 @@ function init() {
   $('#settings').addEventListener('close', () => { if (state.view === 'jobs') render(); });
   $('#skills').addEventListener('change', e => { state.settings.skills = e.target.value; saveSettings(); });
   document.querySelectorAll('#theme button').forEach(b => b.addEventListener('click', () => {
-    state.settings.theme = b.dataset.theme; saveSettings(); applyTheme();
+    state.settings.theme = b.dataset.theme; saveSettings(); applyTheme(); syncGuideTheme();
   }));
 
   new IntersectionObserver(entries => {

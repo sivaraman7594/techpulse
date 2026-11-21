@@ -175,6 +175,9 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 .attrib a { color: var(--accent); }
 .card.known { opacity: .7; }
 .chapter { margin: 14px 2px 0; font-size: 15px; }
+.guide { display: block; width: 100%; height: 70vh; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.section-note a { color: var(--accent); font-weight: 600; }
+body[data-guide] .search { display: none; }
 .chapter .muted { font-size: 12px; }
 .tag.ok-tag { color: var(--good); }
 .callout { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--accent-soft); border-radius: var(--radius); padding: 12px 14px; }

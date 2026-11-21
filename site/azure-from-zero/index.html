@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<title>Azure From Zero</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky top bar; left course rail (drawer under 960px); one reading column (~72ch) on a cool blueprint-paper ground. */
+:root{
+  --bg:#F2F5F9; --surface:#FFFFFF; --sunk:#E7ECF3; --ink:#0E1A2B; --muted:#55657B; --line:#D6DEE9;
+  --accent:#0A5FC4; --accent-ink:#FFFFFF; --accent-soft:#E1ECFA;
+  --kid:#0A7A5C; --kid-soft:#DDF2EA; --work:#94500A; --work-soft:#FAEAD2;
+  --good:#18794A; --good-soft:#DCF1E4; --bad:#B12C22; --bad-soft:#F8E0DC;
+  --code-bg:#0E1A2B; --code-ink:#D9E4F4; --code-dim:#8FA3BF;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Inter","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0A111D; --surface:#111B2B; --sunk:#0D1624; --ink:#E4ECF7; --muted:#93A4BB; --line:#23324A;
+  --accent:#5BA3FF; --accent-ink:#06101F; --accent-soft:#12284A;
+  --kid:#4CCAA2; --kid-soft:#0E2C25; --work:#F0A85A; --work-soft:#33230F;
+  --good:#4FD08A; --good-soft:#0F2D1E; --bad:#FF7D70; --bad-soft:#3A1612;
+  --code-bg:#060C16; --code-ink:#D9E4F4; --code-dim:#7D90AC; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0A111D; --surface:#111B2B; --sunk:#0D1624; --ink:#E4ECF7; --muted:#93A4BB; --line:#23324A;
+  --accent:#5BA3FF; --accent-ink:#06101F; --accent-soft:#12284A;
+  --kid:#4CCAA2; --kid-soft:#0E2C25; --work:#F0A85A; --work-soft:#33230F;
+  --good:#4FD08A; --good-soft:#0F2D1E; --bad:#FF7D70; --bad-soft:#3A1612;
+  --code-bg:#060C16; --code-ink:#D9E4F4; --code-dim:#7D90AC; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+a{color:var(--accent)}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--sunk);padding:.08em .35em;border-radius:5px;overflow-wrap:anywhere}
+pre{background:var(--code-bg);color:var(--code-ink);border-radius:var(--r);padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.55;margin:0}
+pre code{background:none;padding:0;color:inherit;font-size:inherit;overflow-wrap:normal}
+h1,h2,h3,h4{font-family:var(--f-display);line-height:1.15;text-wrap:balance;margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top-in{display:flex;align-items:center;gap:14px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex-shrink:0}
+.brand-mark{width:30px;height:30px}
+.brand b{font-family:var(--f-display);font-weight:800;font-size:19px;letter-spacing:-.01em}
+.menu-btn{display:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:600;font-size:14px}
+.search{position:relative;flex:1;max-width:520px;margin-left:auto}
+.search input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 12px 9px 34px;font:inherit;font-size:15px;color:var(--ink)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted)}
+.results{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 12px 30px rgba(10,20,40,.18);max-height:60vh;overflow:auto;padding:6px}
+.results a{display:block;padding:8px 10px;border-radius:7px;text-decoration:none;color:var(--ink)}
+.results a:hover,.results a:focus{background:var(--accent-soft)}
+.results small{display:block;color:var(--muted);font-size:12.5px}
+.results .kind{font-family:var(--f-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-right:6px}
+.meter{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex-shrink:0;font-variant-numeric:tabular-nums}
+.meter .bar{width:84px;height:6px;border-radius:9px;background:var(--sunk);overflow:hidden}
+.meter .bar i{display:block;height:100%;background:var(--accent);border-radius:9px}
+
+/* shell */
+.shell{display:grid;grid-template-columns:276px minmax(0,1fr);min-height:calc(100vh - 60px)}
+.rail{border-right:1px solid var(--line);background:var(--surface);padding:18px 14px 40px;position:sticky;top:calc(60px + env(safe-area-inset-top,0px));height:calc(100vh - 60px - env(safe-area-inset-top,0px));overflow-y:auto;
+  padding-left:max(14px,env(safe-area-inset-left,0px))}
+.rail h4{font-family:var(--f-body);font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:18px 8px 6px;font-weight:600}
+.rail h4:first-child{margin-top:0}
+.rail a{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;text-decoration:none;color:var(--ink);font-size:14.5px;line-height:1.3}
+.rail a:hover{background:var(--sunk)}
+.rail a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.rail .n{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);width:18px;flex-shrink:0;text-align:right}
+.rail .tick{margin-left:auto;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);flex-shrink:0;display:grid;place-items:center}
+.rail .tick.done{background:var(--good);border-color:var(--good)}
+.rail .tick.done::after{content:"";width:7px;height:4px;border-left:2px solid var(--surface);border-bottom:2px solid var(--surface);transform:rotate(-45deg) translate(1px,-1px)}
+.scrim{display:none}
+
+main{padding-block:34px 90px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:0}
+.col{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.wide{max-width:1080px}
+
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .menu-btn{display:block}
+  .rail{position:fixed;top:0;left:0;bottom:0;height:auto;width:min(300px,86vw);z-index:40;transform:translateX(-102%);transition:transform .22s ease;padding-top:calc(18px + env(safe-area-inset-top,0px));box-shadow:4px 0 30px rgba(0,0,0,.2)}
+  .rail.open{transform:none}
+  .scrim.open{display:block;position:fixed;inset:0;background:rgba(5,10,20,.45);z-index:35}
+  .meter .bar{width:48px}
+}
+@media (max-width:560px){.meter span{display:none}.brand b{font-size:17px}.top-in{gap:10px}}
+@media (max-width:480px){.brand b{display:none}.meter{display:none}}
+.search{min-width:0}
+
+/* type */
+.eyebrow{font-family:var(--f-mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere;line-height:1.5}
+.eyebrow b{color:var(--accent);font-weight:600}
+.h1{font-size:clamp(30px,5vw,44px);font-weight:800;letter-spacing:-.02em}
+.lead{font-size:19px;line-height:1.55;color:var(--ink);max-width:65ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:13px;background:var(--surface);color:var(--muted)}
+.prose{display:flex;flex-direction:column;gap:14px;max-width:72ch}
+.prose h3{font-size:23px;font-weight:700;margin-top:18px;letter-spacing:-.01em}
+.prose p,.prose ul,.prose ol{margin:0}
+.prose ul,.prose ol{padding-left:22px;display:flex;flex-direction:column;gap:6px}
+.prose li ul{margin-top:6px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;line-height:1.45}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;background:var(--sunk);font-size:13px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.you{color:var(--work);font-weight:600}
+td.ms{color:var(--accent);font-weight:600}
+.note{border:1px solid var(--line);background:var(--sunk);border-radius:var(--r);padding:12px 14px;font-size:15px}
+
+/* callouts */
+.box{border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.box .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.box.kid{background:var(--kid-soft)}
+.box.kid .lbl{color:var(--kid)}
+.box.work{background:var(--work-soft)}
+.box.work .lbl{color:var(--work)}
+.box.work pre{margin-top:6px}
+.box p{margin:0}
+
+.terms{display:flex;flex-wrap:wrap;gap:6px}
+.terms a{text-decoration:none;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink);background:var(--surface)}
+.terms a:hover{border-color:var(--accent);color:var(--accent)}
+
+.sect{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:22px}
+.sect>h2{font-size:24px;font-weight:700}
+.sub{color:var(--muted);font-size:14.5px;margin:0}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 15px;cursor:pointer;font-weight:600;font-size:14.5px;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ok{background:var(--good-soft);border-color:var(--good);color:var(--good)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pn{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pn a{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;text-decoration:none;color:var(--ink);background:var(--surface);min-width:0}
+.pn a:hover{border-color:var(--accent)}
+.pn small{display:block;color:var(--muted);font-size:12.5px}
+.pn .nx{text-align:right;grid-column:2}
+
+/* quiz */
+.quiz{display:flex;flex-direction:column;gap:16px}
+.q{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.q-text{margin:0;font-weight:600}
+.q-n{font-family:var(--f-mono);font-size:12px;color:var(--accent);margin-right:6px}
+.opts{display:grid;gap:7px}
+.opt{text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 12px;cursor:pointer;font-size:15px;line-height:1.4}
+.opt:hover:not([disabled]){border-color:var(--accent)}
+.opt[disabled]{cursor:default}
+.opt.right{background:var(--good-soft);border-color:var(--good);color:var(--ink)}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad)}
+.q-ex{margin:0;font-size:14.5px;color:var(--muted)}
+.q-ex b{color:var(--ink)}
+.score{font-weight:600}
+
+textarea{width:100%;min-height:110px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink);font:inherit;font-size:15px;padding:12px;resize:vertical}
+
+/* home */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center}
+.hero .h1{font-size:clamp(36px,6vw,58px)}
+.hero p{margin:0}
+.stack{display:flex;flex-direction:column;gap:14px}
+.layers{display:flex;flex-direction:column;gap:6px;font-family:var(--f-mono);font-size:12.5px}
+.layers div{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;gap:10px}
+.layers div:nth-child(1){margin-left:0}
+.layers div:nth-child(2){margin-left:14px}
+.layers div:nth-child(3){margin-left:28px}
+.layers div:nth-child(4){margin-left:42px}
+.layers div:nth-child(5){margin-left:56px;border-color:var(--accent);color:var(--accent)}
+.layers span{color:var(--muted)}
+.loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;counter-reset:s}
+.loop div{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;font-size:14.5px;display:flex;flex-direction:column;gap:4px}
+.loop b{font-family:var(--f-display);font-size:17px}
+.loop div::before{counter-increment:s;content:"Step " counter(s);font-family:var(--f-mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.parts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.part{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.part h3{font-size:18px}
+.part ol{margin:0;padding-left:20px;font-size:14.5px;display:flex;flex-direction:column;gap:3px}
+.part a{text-decoration:none;color:var(--ink)}
+.part a:hover{color:var(--accent)}
+.part li.done a{color:var(--good)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;text-decoration:none;color:var(--ink);background:var(--surface);display:flex;flex-direction:column;gap:2px}
+.tile:hover{border-color:var(--accent)}
+.tile b{font-family:var(--f-display);font-size:17px}
+.tile small{color:var(--muted);font-size:13.5px;line-height:1.4}
+@media (max-width:760px){.hero,.parts{grid-template-columns:minmax(0,1fr)}.loop{grid-template-columns:repeat(2,minmax(0,1fr))}.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.pn{grid-template-columns:minmax(0,1fr)}.pn .nx{grid-column:1}}
+@media (max-width:420px){.tiles,.loop{grid-template-columns:minmax(0,1fr)}}
+
+/* services */
+.filters{display:flex;flex-wrap:wrap;gap:6px}
+.filters button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:5px 12px;font-size:13.5px;cursor:pointer}
+.filters button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.field{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:10px 12px;font:inherit;color:var(--ink)}
+.svc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+@media (max-width:760px){.svc-grid{grid-template-columns:minmax(0,1fr)}}
+details.svc{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);min-width:0}
+details.svc summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;flex-direction:column;gap:3px}
+details.svc summary::-webkit-details-marker{display:none}
+details.svc summary b{font-size:15.5px}
+details.svc summary small{color:var(--muted);font-size:13.5px;line-height:1.4}
+details.svc .cat{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:8px;align-items:center}
+.mine{font-family:var(--f-body);background:var(--work-soft);color:var(--work);border-radius:99px;padding:1px 7px;font-size:10.5px;letter-spacing:.04em}
+details.svc[open]{border-color:var(--accent)}
+.svc-body{padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;font-size:14.5px}
+.svc-body p{margin:0}
+.svc-body .k{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block}
+
+/* glossary & flashcards */
+.gl{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.gl div{padding:10px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:200px minmax(0,1fr);gap:12px;font-size:14.5px}
+.gl div:last-child{border-bottom:none}
+.gl b{font-weight:600}
+.gl a{font-size:12.5px;text-decoration:none}
+@media (max-width:560px){.gl div{grid-template-columns:minmax(0,1fr);gap:2px}}
+.card{border:1px solid var(--line);background:var(--surface);border-radius:14px;min-height:220px;display:grid;place-items:center;text-align:center;padding:26px;cursor:pointer;font-size:18px}
+.card .front{font-family:var(--f-display);font-size:clamp(24px,4vw,34px);font-weight:700}
+.card.flipped{background:var(--accent-soft);border-color:var(--accent)}
+.card small{display:block;color:var(--muted);font-size:13px;margin-top:10px}
+
+/* labs & drills */
+.lab{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.lab h3{font-size:19px}
+.lab ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.badge{font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;letter-spacing:.03em}
+.badge.read{background:var(--good-soft);color:var(--good)}
+.badge.sandbox{background:var(--work-soft);color:var(--work)}
+details.reveal{border:1px dashed var(--line);border-radius:8px;padding:8px 12px}
+details.reveal summary{cursor:pointer;font-weight:600;font-size:14.5px}
+details.reveal[open]{display:flex;flex-direction:column;gap:8px}
+.codewrap{position:relative;margin-top:8px}
+.copy{position:absolute;top:8px;right:8px;border:1px solid var(--code-dim);background:var(--code-bg);color:var(--code-ink);border-radius:6px;font-size:12px;padding:3px 8px;cursor:pointer}
+
+/* flows */
+.flow{display:flex;gap:0;overflow-x:auto;padding:4px 2px 10px;align-items:stretch}
+.node{flex:0 0 auto;width:150px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px}
+.node small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-family:var(--f-mono)}
+.node b{font-size:14.5px;line-height:1.3}
+.node.on{border-color:var(--accent);background:var(--accent-soft)}
+.arrow{flex:0 0 26px;display:grid;place-items:center;color:var(--muted)}
+.flow-detail{border:1px solid var(--accent);border-radius:var(--r);background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.flow-detail p{margin:0}
+
+/* widgets */
+.widget{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.widget h4{font-size:18px}
+.widget .wl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.kv div{background:var(--sunk);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column}
+.kv span{font-size:12px;color:var(--muted)}
+.kv b{font-family:var(--f-mono);font-size:15px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.slarow{display:grid;grid-template-columns:22px minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:14.5px}
+.slarow input[type=number]{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:4px 6px;font:inherit;font-family:var(--f-mono);font-size:13.5px}
+.bars{display:flex;flex-direction:column;gap:5px}
+.barrow{display:grid;grid-template-columns:72px minmax(0,1fr) 70px;gap:8px;align-items:center;font-size:12.5px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.barrow .track{height:12px;background:var(--sunk);border-radius:4px;overflow:hidden}
+.barrow .fill{height:100%;background:var(--accent);border-radius:4px}
+.barrow .fill.alt{background:var(--work)}
+.ctl{display:flex;flex-wrap:wrap;gap:12px;font-size:14px;align-items:center}
+.ctl label{display:flex;gap:6px;align-items:center}
+.ctl input[type=number]{width:70px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:4px 6px;font:inherit}
+.wiz-q{font-size:17px;font-weight:600;margin:0}
+.wiz-path{font-size:13px;color:var(--muted)}
+.result{border-left:3px solid var(--good);background:var(--good-soft);border-radius:0 8px 8px 0;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.result p{margin:0}
+
+/* exam */
+.exam-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.big{font-family:var(--f-display);font-size:56px;font-weight:800;line-height:1}
+.review{display:flex;flex-direction:column;gap:10px}
+.review div{border-left:3px solid var(--bad);padding:6px 12px;background:var(--surface);border-radius:0 8px 8px 0;font-size:14.5px}
+
+.plan{display:flex;flex-direction:column;gap:8px}
+.wk{display:grid;grid-template-columns:86px minmax(0,1fr);gap:12px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;font-size:14.5px}
+.wk b{font-family:var(--f-display);font-size:16px}
+.wk p{margin:0}
+@media (max-width:480px){.wk{grid-template-columns:minmax(0,1fr);gap:4px}}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <button class="menu-btn" id="menuBtn" aria-label="Open course menu" aria-expanded="false">Menu</button>
+    <a class="brand" href="#home" aria-label="Azure From Zero home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="7" fill="var(--accent)"/><path d="M9 22 L15 9 L17.5 14 L13.5 22 Z" fill="var(--accent-ink)"/><path d="M15.5 22 L19 15 L23 22 Z" fill="var(--accent-ink)" opacity=".75"/></svg>
+      <b>Azure From Zero</b>
+    </a>
+    <div class="search">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6"/><path d="m13 13 5 5"/></svg>
+      <input id="q" type="search" placeholder="Search chapters, services, terms…" autocomplete="off" aria-label="Search the guide">
+      <div class="results" id="results" hidden></div>
+    </div>
+    <div class="meter" title="Chapters completed"><span id="meterTxt">0 / 16</span><div class="bar"><i id="meterBar" style="width:0"></i></div></div>
+  </div>
+</header>
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Course"></nav>
+  <div class="scrim" id="scrim"></div>
+  <main id="main"></main>
+</div>
+
+<script src="chapters.js"></script>
+<script src="services.js"></script>
+<script src="extras.js"></script>
+<script>
+(function(){
+const CH = window.CH||[], SVC = window.SVC||[], GLOSS = window.GLOSS||[], LABS = window.LABS||[], DRILLS = window.DRILLS||[], FLOWS = window.FLOWS||[];
+const PARTS = [{k:'A',t:'Foundations'},{k:'B',t:'Building blocks'},{k:'C',t:'Running it well'},{k:'D',t:'The bigger picture'}];
+const MINE = new Set(['Azure Functions','App Service','Storage account','Blob Storage','Azure SQL Database','Virtual Network (VNet)','NAT Gateway','Service Bus','Logic Apps','API Management','Microsoft Entra ID','Managed Identities','Azure Key Vault','Application Insights','Log Analytics','Azure Monitor','Azure Resource Manager','Azure CLI & PowerShell','Private Endpoint / Private Link','Network Security Group (NSG)']);
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const strip = h => String(h).replace(/<[^>]+>/g,' ').replace(/&[a-z]+;/g,' ').replace(/\s+/g,' ');
+const main = $('#main');
+
+/* storage (per-viewer convenience only) */
+let st = {};
+try{ st = JSON.parse(localStorage.getItem('afz-v1')||'{}')||{} }catch(e){ st = {} }
+st.done = st.done||{}; st.notes = st.notes||{}; st.quiz = st.quiz||{};
+const save = ()=>{ try{ localStorage.setItem('afz-v1', JSON.stringify(st)) }catch(e){} };
+
+const chIndex = s => CH.findIndex(c=>c.slug===s);
+const chBySlug = s => CH.find(c=>c.slug===s);
+let pending = {svc:'', gl:''};
+
+/* rail */
+function rail(active){
+  let h = `<h4>Start</h4>
+  <a href="#home" class="${active==='home'?'on':''}">Welcome</a>
+  <a href="#roadmap" class="${active==='roadmap'?'on':''}">Learning plan</a>`;
+  PARTS.forEach(p=>{
+    h += `<h4>${p.t}</h4>`;
+    CH.forEach((c,i)=>{ if(c.part!==p.k) return;
+      h += `<a href="#ch-${c.slug}" class="${active==='ch-'+c.slug?'on':''}"><span class="n">${i+1}</span><span>${esc(c.title)}</span><span class="tick ${st.done[c.slug]?'done':''}" aria-label="${st.done[c.slug]?'completed':'not completed'}"></span></a>`;
+    });
+  });
+  h += `<h4>Practise</h4>
+  <a href="#labs" class="${active==='labs'?'on':''}">Hands-on labs</a>
+  <a href="#drills" class="${active==='drills'?'on':''}">Troubleshooting drills</a>
+  <a href="#exam" class="${active==='exam'?'on':''}">Final exam</a>
+  <a href="#glossary" class="${active==='glossary'?'on':''}">Glossary &amp; flashcards</a>
+  <h4>Explore</h4>
+  <a href="#services" class="${active==='services'?'on':''}">Service explorer</a>
+  <a href="#my-azure" class="${active==='my-azure'?'on':''}">Your Azure, explained</a>
+  <a href="#toolbox" class="${active==='toolbox'?'on':''}">Toolbox</a>`;
+  $('#rail').innerHTML = h;
+  const n = CH.filter(c=>st.done[c.slug]).length;
+  $('#meterTxt').textContent = `${n} / ${CH.length}`;
+  $('#meterBar').style.width = (n/CH.length*100)+'%';
+}
+
+/* quiz engine */
+const QUIZ = {};
+function quizHTML(qs,key){
+  QUIZ[key] = {qs, answered:0, right:0};
+  return `<div class="quiz" data-key="${key}">`+qs.map((q,i)=>`<div class="q" data-i="${i}"><p class="q-text"><span class="q-n">Q${i+1}</span>${q.q}</p><div class="opts">${q.o.map((o,j)=>`<button class="opt" data-j="${j}">${o}</button>`).join('')}</div><p class="q-ex" hidden></p></div>`).join('')+`<p class="score" aria-live="polite"></p></div>`;
+}
+main.addEventListener('click',e=>{
+  const b = e.target.closest('.opt'); if(!b || b.disabled) return;
+  const quiz = b.closest('.quiz'); if(!quiz) return;
+  const key = quiz.dataset.key, qEl = b.closest('.q'), i = +qEl.dataset.i, j = +b.dataset.j;
+  const Q = QUIZ[key], q = Q.qs[i];
+  $$('.opt',qEl).forEach((o,k)=>{ o.disabled = true; if(k===q.a) o.classList.add('right'); });
+  if(j!==q.a) b.classList.add('wrong'); else Q.right++;
+  Q.answered++;
+  const ex = $('.q-ex',qEl); ex.hidden = false;
+  ex.innerHTML = `<b>${j===q.a?'Correct.':'Not quite.'}</b> ${q.e}`;
+  if(Q.answered===Q.qs.length){
+    const s = $('.score',quiz);
+    s.textContent = `You scored ${Q.right} / ${Q.qs.length}. ${Q.right===Q.qs.length?'Full marks.':'Re-read the parts you missed, then try again tomorrow without looking.'}`;
+    if(key.startsWith('ch-')){ st.quiz[key.slice(3)] = `${Q.right}/${Q.qs.length}`; save(); }
+  }
+});
+
+/* copy buttons */
+main.addEventListener('click',e=>{
+  const b = e.target.closest('.copy'); if(!b) return;
+  const code = b.parentElement.querySelector('code');
+  const txt = code.textContent;
+  const done = ok=>{ b.textContent = ok?'Copied':'Select & copy'; setTimeout(()=>b.textContent='Copy',1600); };
+  try{ navigator.clipboard.writeText(txt).then(()=>done(true),()=>{ selectText(code); done(false); }); }catch(err){ selectText(code); done(false); }
+});
+function selectText(el){ const r=document.createRange(); r.selectNodeContents(el); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
+const codeBlock = t => `<div class="codewrap"><button class="copy" type="button">Copy</button><pre><code>${esc(t)}</code></pre></div>`;
+
+/* ───── pages ───── */
+function home(){
+  const n = CH.filter(c=>st.done[c.slug]).length;
+  const next = CH.find(c=>!st.done[c.slug]) || CH[0];
+  return `<div class="col wide">
+  <section class="hero">
+    <div class="stack">
+      <div class="eyebrow">az account show --query <b>"you"</b></div>
+      <h1 class="h1">Learn Azure from the ground up, then explain it without help.</h1>
+      <p class="lead">Sixteen chapters take you from “what is the cloud?” to networking, messaging, security and architecture. Every idea starts with an everyday analogy, then the real detail, then a link to systems you already run.</p>
+      <div class="row"><a class="btn pri" href="#ch-${next.slug}">${n?'Continue':'Start'}: ${esc(next.title)}</a><a class="btn" href="#roadmap">See the 8-week plan</a></div>
+    </div>
+    <div class="layers" aria-label="How Azure is organised">
+      <div>Tenant <span>Entra ID</span></div>
+      <div>Management group <span>policy at scale</span></div>
+      <div>Subscription <span>billing</span></div>
+      <div>Resource group <span>lifecycle</span></div>
+      <div>Resource <span>your Function App</span></div>
+    </div>
+  </section>
+
+  <section class="sect">
+    <h2>How to use this guide to stop relying on AI</h2>
+    <p class="sub">Each chapter is built around this loop. Use the same loop at work the next time something breaks.</p>
+    <div class="loop">
+      <div><b>Read it fully</b>Read the error, the status code and the log line. Write down exactly what it says.</div>
+      <div><b>Guess first</b>Write one sentence: “I think it fails because…”. A wrong guess still trains you.</div>
+      <div><b>Check evidence</b>Prove or disprove it yourself: logs, metrics, config, a CLI command.</div>
+      <div><b>Then compare</b>Only now ask docs, a colleague or AI, and compare with your own answer.</div>
+    </div>
+    <p class="sub">Every chapter ends with a quiz and a “say it in your own words” box. If you can’t write the answer without scrolling up, read the chapter again tomorrow.</p>
+  </section>
+
+  <section class="sect">
+    <h2>The course</h2>
+    <div class="parts">${PARTS.map(p=>`<div class="part"><h3>${p.t}</h3><ol>${CH.map((c,i)=>c.part===p.k?`<li value="${i+1}" class="${st.done[c.slug]?'done':''}"><a href="#ch-${c.slug}">${esc(c.title)}</a></li>`:'').join('')}</ol></div>`).join('')}</div>
+  </section>
+
+  <section class="sect">
+    <h2>Practise and explore</h2>
+    <div class="tiles">
+      <a class="tile" href="#my-azure"><b>Your Azure</b><small>Your SAP→Unicommerce, CPD and migration systems as clickable diagrams.</small></a>
+      <a class="tile" href="#services"><b>${SVC.length} services</b><small>Every major Azure service in plain words, searchable.</small></a>
+      <a class="tile" href="#labs"><b>${LABS.length} labs</b><small>Real CLI tasks. Try first, then reveal the answer.</small></a>
+      <a class="tile" href="#drills"><b>${DRILLS.length} drills</b><small>Production incidents. Pick the right first move.</small></a>
+      <a class="tile" href="#exam"><b>Final exam</b><small>15 random questions from all chapters.</small></a>
+      <a class="tile" href="#toolbox"><b>Toolbox</b><small>Subnet calculator, SLA calculator, retry visualiser, compute chooser.</small></a>
+    </div>
+  </section>
+  </div>`;
+}
+
+function chapter(slug){
+  const i = chIndex(slug); if(i<0) return notFound();
+  const c = CH[i], prev = CH[i-1], next = CH[i+1];
+  const part = PARTS.find(p=>p.k===c.part);
+  return `<article class="col">
+  <div class="eyebrow">/subscriptions/you/resourceGroups/azure-from-zero/providers/<b>Learning.Chapters</b>/${String(i+1).padStart(2,'0')}-${c.slug}</div>
+  <h1 class="h1">${esc(c.title)}</h1>
+  <div class="meta"><span class="chip">Chapter ${i+1} of ${CH.length}</span><span class="chip">${part.t}</span><span class="chip">About ${c.mins} min</span>${st.quiz[c.slug]?`<span class="chip">Quiz ${st.quiz[c.slug]}</span>`:''}</div>
+  <p class="lead">${c.one}</p>
+  <div class="box kid"><span class="lbl">Explain it like I’m 12</span><p>${c.kid}</p></div>
+  <div class="prose">${c.body}</div>
+  ${c.work?`<div class="box work"><span class="lbl">In your work</span><div>${c.work}</div></div>`:''}
+  <section class="sect"><h2>Key terms</h2><p class="sub">Tap a term to see its definition in the glossary.</p><div class="terms">${c.terms.map(t=>`<a href="#glossary" data-term="${esc(t)}">${esc(t)}</a>`).join('')}</div></section>
+  <section class="sect"><h2>Check yourself</h2><p class="sub">Answer before you scroll back up.</p>${quizHTML(c.quiz,'ch-'+c.slug)}</section>
+  <section class="sect"><h2>Say it in your own words</h2><p class="sub">${esc(c.teach)}</p><textarea id="note-${c.slug}" data-note="${c.slug}" placeholder="Write your answer here. It stays in this browser only.">${esc(st.notes[c.slug]||'')}</textarea></section>
+  <div class="row"><button class="btn ${st.done[c.slug]?'ok':'pri'}" id="doneBtn" data-slug="${c.slug}">${st.done[c.slug]?'Completed. Mark as not done':'Mark chapter as done'}</button></div>
+  <nav class="pn">${prev?`<a href="#ch-${prev.slug}"><small>Previous</small>${esc(prev.title)}</a>`:'<span></span>'}${next?`<a class="nx" href="#ch-${next.slug}"><small>Next</small>${esc(next.title)}</a>`:`<a class="nx" href="#exam"><small>Finished?</small>Take the final exam</a>`}</nav>
+  </article>`;
+}
+
+function services(){
+  const cats = ['All','Yours',...Array.from(new Set(SVC.map(s=>s[1])))];
+  return `<div class="col wide">
+  <div class="eyebrow">az provider list --query <b>"[].namespace"</b></div>
+  <h1 class="h1">Service explorer</h1>
+  <p class="lead">${SVC.length} Azure services in plain language. Open any card for an analogy, when to use it and what to watch out for. Cards marked <span class="mine">YOU USE THIS</span> appear in your own systems.</p>
+  <input class="field" id="svcQ" type="search" placeholder="Filter services, e.g. queue, firewall, cache" value="${esc(pending.svc)}" aria-label="Filter services">
+  <div class="filters" id="svcF">${cats.map((c,i)=>`<button data-c="${esc(c)}" class="${i===0?'on':''}">${esc(c)}</button>`).join('')}</div>
+  <p class="sub" id="svcCount"></p>
+  <div class="svc-grid" id="svcGrid"></div>
+  </div>`;
+}
+function bindServices(){
+  let cat = 'All';
+  const draw = ()=>{
+    const q = $('#svcQ').value.trim().toLowerCase();
+    const list = SVC.filter(s=>(cat==='All'||(cat==='Yours'?MINE.has(s[0]):s[1]===cat)) && (!q || s.slice(0,6).join(' ').toLowerCase().includes(q)));
+    $('#svcCount').textContent = `${list.length} service${list.length===1?'':'s'}`;
+    $('#svcGrid').innerHTML = list.map(s=>{ const ch = chBySlug(s[6]); return `<details class="svc"><summary><span class="cat">${esc(s[1])}${MINE.has(s[0])?'<span class="mine">YOU USE THIS</span>':''}</span><b>${esc(s[0])}</b><small>${esc(s[2])}</small></summary><div class="svc-body"><p><span class="k">Think of it as</span>${esc(s[3])}</p><p><span class="k">Use it when</span>${esc(s[4])}</p><p><span class="k">Watch out</span>${esc(s[5])}</p>${ch?`<p><a href="#ch-${ch.slug}">Read more in chapter ${chIndex(ch.slug)+1}: ${esc(ch.title)}</a></p>`:''}</div></details>`; }).join('') || '<p class="sub">No service matches that. Try a simpler word.</p>';
+  };
+  $('#svcQ').addEventListener('input',draw);
+  $('#svcF').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; cat=b.dataset.c; $$('#svcF button').forEach(x=>x.classList.toggle('on',x===b)); draw(); });
+  draw(); pending.svc='';
+}
+
+function glossary(){
+  return `<div class="col">
+  <div class="eyebrow">az glossary list <b>--all</b></div>
+  <h1 class="h1">Glossary &amp; flashcards</h1>
+  <p class="lead">${GLOSS.length} terms, each in one or two plain sentences. Use flashcards to test recall: say the definition out loud before you flip.</p>
+  <div class="row"><button class="btn pri" id="gMode">Practise with flashcards</button></div>
+  <div id="gArea"></div>
+  </div>`;
+}
+function bindGlossary(){
+  let mode = 'list';
+  const area = $('#gArea');
+  const list = ()=>{
+    area.innerHTML = `<div class="stack"><input class="field" id="gQ" type="search" placeholder="Filter terms" value="${esc(pending.gl)}" aria-label="Filter glossary"><div class="gl" id="gL"></div></div>`;
+    const draw = ()=>{
+      const q = $('#gQ').value.trim().toLowerCase();
+      const rows = GLOSS.filter(g=>!q||g[0].toLowerCase().includes(q)||g[1].toLowerCase().includes(q)).sort((a,b)=>a[0].localeCompare(b[0]));
+      $('#gL').innerHTML = rows.map(g=>{ const ch=chBySlug(g[2]); return `<div><b>${esc(g[0])}</b><span>${esc(g[1])} ${ch?`<a href="#ch-${ch.slug}">Ch ${chIndex(ch.slug)+1} →</a>`:''}</span></div>`; }).join('') || '<div><span>No match.</span></div>';
+    };
+    $('#gQ').addEventListener('input',draw); draw(); pending.gl='';
+  };
+  const cards = ()=>{
+    let deck = GLOSS.slice().sort(()=>Math.random()-.5), k = 0, flip = false;
+    area.innerHTML = `<div class="stack"><div class="row"><label class="sub" for="gCh">Chapter</label><select class="field" id="gCh" style="max-width:320px"><option value="">All chapters</option>${CH.map((c,i)=>`<option value="${c.slug}">${i+1}. ${esc(c.title)}</option>`).join('')}</select></div><div class="card" id="card" tabindex="0" role="button" aria-label="Flip card"></div><div class="row"><button class="btn" id="cPrev">Previous</button><button class="btn pri" id="cFlip">Flip</button><button class="btn" id="cNext">Next</button><span class="sub" id="cPos"></span></div></div>`;
+    const draw = ()=>{ const g = deck[k]; const c=$('#card'); if(!g){ c.innerHTML='No cards.'; return; } c.classList.toggle('flipped',flip); c.innerHTML = flip?`<div>${esc(g[1])}<small>${esc(g[0])}</small></div>`:`<div><div class="front">${esc(g[0])}</div><small>Say what it means, then flip</small></div>`; $('#cPos').textContent = `${k+1} / ${deck.length}`; };
+    const f = ()=>{ flip=!flip; draw(); };
+    $('#card').addEventListener('click',f); $('#card').addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); f(); } });
+    $('#cFlip').addEventListener('click',f);
+    $('#cNext').addEventListener('click',()=>{ k=(k+1)%deck.length; flip=false; draw(); });
+    $('#cPrev').addEventListener('click',()=>{ k=(k-1+deck.length)%deck.length; flip=false; draw(); });
+    $('#gCh').addEventListener('change',e=>{ const v=e.target.value; deck = GLOSS.filter(g=>!v||g[2]===v).sort(()=>Math.random()-.5); k=0; flip=false; draw(); });
+    draw();
+  };
+  $('#gMode').addEventListener('click',()=>{ mode = mode==='list'?'cards':'list'; $('#gMode').textContent = mode==='list'?'Practise with flashcards':'Back to the list'; mode==='list'?list():cards(); });
+  list();
+}
+
+function labs(){
+  return `<div class="col">
+  <div class="eyebrow">az lab run <b>--without-ai</b></div>
+  <h1 class="h1">Hands-on labs</h1>
+  <p class="lead">Real tasks with the Azure CLI. Read the goal, try it yourself, open the hint only if stuck, and open the answer last.</p>
+  <div class="note"><span class="badge read">Read-only</span> labs only look; they are safe to run against subscriptions you can already read. <span class="badge sandbox">Sandbox</span> labs create resources: run them only in a personal or free subscription, never production, and delete the resource group at the end.</div>
+  ${LABS.map((l,i)=>{ const ch=chBySlug(l.ch); return `<div class="lab"><div class="row"><span class="badge ${l.safe}">${l.safe==='read'?'Read-only':'Sandbox'}</span>${ch?`<a class="sub" href="#ch-${ch.slug}">Chapter ${chIndex(ch.slug)+1}: ${esc(ch.title)}</a>`:''}</div><h3>Lab ${i+1}. ${esc(l.t)}</h3><p style="margin:0">${esc(l.goal)}</p><ol>${l.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol><details class="reveal"><summary>Hint</summary><p style="margin:0">${l.hint}</p></details><details class="reveal"><summary>Show the answer</summary>${codeBlock(l.sol)}</details></div>`; }).join('')}
+  <p class="sub">Install the Azure CLI on Windows with <code>winget install -e --id Microsoft.AzureCLI</code>, or use Cloud Shell in the portal. For a practice subscription, sign up for an Azure free account with a personal email.</p>
+  </div>`;
+}
+
+function drills(){
+  return `<div class="col">
+  <div class="eyebrow">az incident triage <b>--first-move</b></div>
+  <h1 class="h1">Troubleshooting drills</h1>
+  <p class="lead">Real-style incidents, several based on problems from your own work. Pick the best <b>first</b> move. The feedback explains why each choice helps or hurts.</p>
+  ${DRILLS.map((d,i)=>`<div class="q drill" data-d="${i}"><p class="q-text"><span class="q-n">Drill ${i+1}</span>${esc(d.t)}</p><p style="margin:0">${esc(d.s)}</p><div class="opts">${d.o.map((o,j)=>`<button class="dopt opt" data-j="${j}">${esc(o.t)}</button>`).join('')}</div><p class="q-ex" hidden></p></div>`).join('')}
+  </div>`;
+}
+function bindDrills(){
+  $$('.drill').forEach(el=>{
+    const d = DRILLS[+el.dataset.d];
+    el.addEventListener('click',e=>{
+      const b = e.target.closest('.dopt'); if(!b) return;
+      e.stopPropagation();
+      const o = d.o[+b.dataset.j];
+      $$('.dopt',el).forEach(x=>x.classList.remove('right','wrong'));
+      b.classList.add(o.ok?'right':'wrong');
+      const ex = $('.q-ex',el); ex.hidden=false;
+      const ch = chBySlug(d.ch);
+      ex.innerHTML = `<b>${o.ok?'Best first move.':'Not the best first move.'}</b> ${esc(o.f)}${o.ok&&ch?` <a href="#ch-${ch.slug}">Review chapter ${chIndex(ch.slug)+1}</a>`:''}`;
+    },true);
+  });
+}
+
+function myAzure(){
+  return `<div class="col wide">
+  <div class="eyebrow">az resource list --tag <b>owner=you</b></div>
+  <h1 class="h1">Your Azure, explained</h1>
+  <p class="lead">Three systems from your recent work, drawn as simplified flows. Click any step to see what that Azure piece does and what went wrong there. These are built from session notes; check the details against the real design.</p>
+  ${FLOWS.map(f=>`<section class="sect" data-flow="${f.id}"><h2>${esc(f.t)}</h2><p class="sub">${esc(f.intro)}</p>
+    <div class="flow" role="list">${f.nodes.map((n,i)=>`${i?'<span class="arrow" aria-hidden="true">→</span>':''}<button class="node ${i===0?'on':''}" role="listitem" data-n="${i}"><small>${esc(n.s)}</small><b>${esc(n.n)}</b></button>`).join('')}</div>
+    <div class="flow-detail" aria-live="polite"></div>
+    <div class="note"><b>Lessons:</b><ul style="margin:6px 0 0;padding-left:20px">${f.lessons.map(l=>`<li>${esc(l)}</li>`).join('')}</ul></div>
+  </section>`).join('')}
+  <section class="sect"><h2>Services you already use</h2><p class="sub">You know more Azure than you think. Each of these appears in your systems.</p><div class="terms">${SVC.filter(s=>MINE.has(s[0])).map(s=>`<a href="#services" data-svc="${esc(s[0])}">${esc(s[0])}</a>`).join('')}</div></section>
+  </div>`;
+}
+function bindFlows(){
+  $$('[data-flow]').forEach(sec=>{
+    const f = FLOWS.find(x=>x.id===sec.dataset.flow), det = $('.flow-detail',sec);
+    const show = i=>{ const n=f.nodes[i], ch=chBySlug(n.ch); $$('.node',sec).forEach((b,k)=>b.classList.toggle('on',k===i)); det.innerHTML = `<b>${esc(n.n)}</b><p>${n.d}</p>${ch?`<p><a href="#ch-${ch.slug}">Learn this in chapter ${chIndex(ch.slug)+1}: ${esc(ch.title)}</a></p>`:''}`; };
+    $('.flow',sec).addEventListener('click',e=>{ const b=e.target.closest('.node'); if(b) show(+b.dataset.n); });
+    show(0);
+  });
+}
+
+/* exam */
+let EX = null;
+function exam(){
+  return `<div class="col">
+  <div class="eyebrow">az exam start <b>--questions 15</b></div>
+  <h1 class="h1">Final exam</h1>
+  <p class="lead">Fifteen random questions from all ${CH.length} chapters. No hints. Aim for 12 or more before moving on to the AZ-900 practice assessment on Microsoft Learn.</p>
+  <div id="exArea"></div></div>`;
+}
+function bindExam(){
+  const all = []; CH.forEach(c=>c.quiz.forEach(q=>all.push(Object.assign({ch:c.slug},q))));
+  const start = ()=>{ EX = {qs:all.slice().sort(()=>Math.random()-.5).slice(0,15), i:0, right:0, miss:[]}; drawQ(); };
+  const drawQ = ()=>{
+    const a = $('#exArea'); if(!a) return;
+    if(EX.i>=EX.qs.length){
+      a.innerHTML = `<div class="widget"><span class="wl">Result</span><div class="big">${EX.right} / ${EX.qs.length}</div><p style="margin:0">${EX.right>=12?'Strong. You understand the foundations.':EX.right>=9?'Good base. Review the chapters below.':'Keep going. Re-read the chapters below, then retake in two days.'}</p>${EX.miss.length?`<div class="review">${EX.miss.map(m=>{const ch=chBySlug(m.ch);return `<div><b>${m.q}</b><br>Answer: ${m.o[m.a]}. <a href="#ch-${m.ch}">Chapter ${chIndex(m.ch)+1}: ${esc(ch.title)}</a></div>`}).join('')}</div>`:''}<div class="row"><button class="btn pri" id="exAgain">Take a new exam</button></div></div>`;
+      $('#exAgain').addEventListener('click',start); return;
+    }
+    const q = EX.qs[EX.i];
+    a.innerHTML = `<div class="q"><div class="exam-top"><span>Question ${EX.i+1} of ${EX.qs.length}</span><span>Score ${EX.right}</span></div><p class="q-text">${q.q}</p><div class="opts">${q.o.map((o,j)=>`<button class="eopt opt" data-j="${j}">${o}</button>`).join('')}</div><p class="q-ex" hidden></p><div class="row" hidden id="exNextRow"><button class="btn pri" id="exNext">${EX.i+1<EX.qs.length?'Next question':'See result'}</button></div></div>`;
+    $$('.eopt',a).forEach(b=>b.addEventListener('click',e=>{
+      e.stopPropagation();
+      const j=+b.dataset.j; $$('.eopt',a).forEach((o,k)=>{ o.disabled=true; if(k===q.a) o.classList.add('right'); });
+      if(j===q.a) EX.right++; else { b.classList.add('wrong'); EX.miss.push(q); }
+      const ex=$('.q-ex',a); ex.hidden=false; ex.innerHTML=`<b>${j===q.a?'Correct.':'Not quite.'}</b> ${q.e}`;
+      $('#exNextRow').hidden=false; $('#exNext').focus();
+      $('#exNext').addEventListener('click',()=>{ EX.i++; drawQ(); });
+    }));
+  };
+  start();
+}
+
+function roadmap(){
+  const W = [
+    ['Week 1','Chapters 1–3','Cloud basics, regions, the resource hierarchy. Lab 1–2. Read every resource ID you see at work out loud.'],
+    ['Week 2','Chapter 4','Identity, RBAC, Key Vault. Lab 10. List every secret your apps use and where it lives.'],
+    ['Week 3','Chapters 5–6','Compute and storage. Labs 3–4 and 13. Build one Python function end to end in a sandbox.'],
+    ['Week 4','Chapters 7–8','Databases and networking. Labs 5–6. Draw your Unicommerce network path from memory.'],
+    ['Week 5','Chapter 9','Messaging, Logic Apps, APIM. Labs 7 and 12. Dead-letter a message on purpose.'],
+    ['Week 6','Chapters 10–11','Security and monitoring. Lab 8–9. Write five KQL queries for your own apps without help.'],
+    ['Week 7','Chapters 12–14','IaC, cost, reliability. Lab 11. Write Bicep for one of your Function Apps.'],
+    ['Week 8','Chapters 15–16 + exam','Data, AI and architecture. All drills. Final exam until you score 12+. Book AZ-900.']
+  ];
+  return `<div class="col">
+  <div class="eyebrow">az learning plan create <b>--weeks 8</b></div>
+  <h1 class="h1">Learning plan</h1>
+  <p class="lead">About 45 minutes a day, five days a week. Read one section, do the quiz without looking back, write the “own words” answer, then do the lab. Depth comes from doing, not from reading more.</p>
+  <div class="plan">${W.map(w=>`<div class="wk"><b>${w[0]}</b><div><p><b style="font-family:var(--f-body);font-size:14.5px">${w[1]}</b></p><p>${w[2]}</p></div></div>`).join('')}</div>
+  <section class="sect"><h2>Certifications, in order</h2>
+  <div class="tw"><table><thead><tr><th>Exam</th><th>Proves</th><th>When</th></tr></thead><tbody>
+  <tr><td><b>AZ-900</b> Azure Fundamentals</td><td>Cloud concepts, core services, pricing, governance</td><td>After this guide (week 8)</td></tr>
+  <tr><td><b>AZ-204</b> Developing Solutions</td><td>Functions, App Service, storage, Service Bus, APIM, monitoring: very close to your daily work</td><td>Next, 2–3 months</td></tr>
+  <tr><td><b>AZ-104</b> Administrator</td><td>Identity, networking, VMs, storage, monitoring in depth</td><td>Alternative or after AZ-204</td></tr>
+  <tr><td><b>AZ-305</b> Solutions Architect Expert</td><td>Designing complete solutions (needs AZ-104)</td><td>Long-term goal</td></tr>
+  <tr><td>Also useful</td><td>AZ-400 (DevOps), AZ-500 (Security), AI-900 / AI-102 (AI), DP-900 (Data)</td><td>As your role needs</td></tr>
+  </tbody></table></div>
+  <p class="sub">Exam codes and content change over time. Check the current exam page on Microsoft Learn before booking.</p></section>
+  <section class="sect"><h2>Where to learn without AI</h2>
+  <ul class="prose" style="padding-left:20px">
+  <li><b>Microsoft Learn</b> (learn.microsoft.com/training): free official learning paths and practice assessments for every exam.</li>
+  <li><b>Service documentation</b> (learn.microsoft.com/azure): read the “Overview”, “Concepts” and “Troubleshoot” pages for every service you use.</li>
+  <li><b>Azure Architecture Center</b> (learn.microsoft.com/azure/architecture): reference architectures and design patterns.</li>
+  <li><b>Azure Updates</b> (azure.microsoft.com/updates): new features and retirements.</li>
+  <li><b>Pricing calculator</b> (azure.microsoft.com/pricing/calculator): estimate any design.</li>
+  <li><b>Error messages and Activity Log</b> in your own subscriptions: the best teacher you have.</li>
+  </ul></section>
+  <section class="sect"><h2>Habits that build independence</h2>
+  <div class="loop">
+  <div><b>20-minute rule</b>Investigate alone for 20 minutes before asking anyone or anything.</div>
+  <div><b>Keep a log</b>Write each problem, your guess, the cause and the fix in a notebook. Re-read it monthly.</div>
+  <div><b>Teach it</b>Explain one concept a week to a colleague. Gaps show up immediately.</div>
+  <div><b>Use AI as a tutor</b>Ask it to quiz you or check your reasoning, not to give you the answer.</div>
+  </div></section>
+  </div>`;
+}
+
+function toolbox(){
+  return `<div class="col">
+  <div class="eyebrow">az toolbox <b>--interactive</b></div>
+  <h1 class="h1">Toolbox</h1>
+  <p class="lead">Four small tools that make the hard numbers in Azure concrete. Each also appears in its chapter.</p>
+  <div data-widget="cidr"></div><div data-widget="sla"></div><div data-widget="backoff"></div><div data-widget="chooser"></div>
+  </div>`;
+}
+
+function notFound(){ return `<div class="col"><h1 class="h1">Page not found</h1><p class="lead">That page doesn’t exist. <a href="#home">Go to the start</a>.</p></div>`; }
+
+/* ───── widgets ───── */
+function mountWidgets(){
+  $$('[data-widget]',main).forEach(el=>{ const w = el.dataset.widget; ({cidr:wCidr, sla:wSla, backoff:wBackoff, chooser:wChooser})[w]?.(el); });
+}
+function wCidr(el){
+  el.innerHTML = `<div class="widget"><span class="wl">Try it: subnet calculator</span><h4>How many addresses does a subnet really give you?</h4><input class="field" id="cidrIn-${uid()}" value="10.20.4.0/24" aria-label="CIDR range"><div class="kv"></div><p class="sub" style="margin:0"></p></div>`;
+  const inp = $('input',el), kv=$('.kv',el), msg=$('p',el);
+  const ipToInt = ip=>{ const p=ip.split('.'); if(p.length!==4) return null; let n=0; for(const x of p){ if(!/^\d{1,3}$/.test(x)||+x>255) return null; n=n*256+(+x); } return n; };
+  const intToIp = n=>[Math.floor(n/16777216)%256,Math.floor(n/65536)%256,Math.floor(n/256)%256,n%256].join('.');
+  const run = ()=>{
+    const m = inp.value.trim().match(/^([\d.]+)\/(\d{1,2})$/);
+    if(!m){ kv.innerHTML=''; msg.textContent='Type a range like 10.0.0.0/24.'; return; }
+    const ip = ipToInt(m[1]), p=+m[2];
+    if(ip===null||p>32){ kv.innerHTML=''; msg.textContent='That is not a valid IPv4 address and prefix.'; return; }
+    const size = Math.pow(2,32-p), net = Math.floor(ip/size)*size, last = net+size-1;
+    const priv = (net>=ipToInt('10.0.0.0')&&last<=ipToInt('10.255.255.255'))||(net>=ipToInt('172.16.0.0')&&last<=ipToInt('172.31.255.255'))||(net>=ipToInt('192.168.0.0')&&last<=ipToInt('192.168.255.255'));
+    const ok = p>=2&&p<=29;
+    kv.innerHTML = `<div><span>Network</span><b>${intToIp(net)}/${p}</b></div><div><span>Total addresses</span><b>${size.toLocaleString()}</b></div><div><span>Usable in Azure</span><b>${ok?(size-5).toLocaleString():'—'}</b></div><div><span>First usable</span><b>${ok?intToIp(net+4):'—'}</b></div><div><span>Last usable</span><b>${ok?intToIp(last-1):'—'}</b></div><div><span>Range type</span><b>${priv?'Private':'Public'}</b></div>`;
+    msg.innerHTML = ok?`Azure reserves <code>${intToIp(net)}</code> (network), <code>${intToIp(net+1)}</code> (gateway), <code>${intToIp(net+2)}</code> and <code>${intToIp(net+3)}</code> (DNS), and <code>${intToIp(last)}</code> (broadcast).${net!==ip?` You typed a host address; the network starts at ${intToIp(net)}.`:''}${priv?'':' Use a private range for VNets.'}`:'Azure subnets must be between /2 and /29 (the smallest gives 3 usable addresses).';
+  };
+  inp.addEventListener('input',run); run();
+}
+let _u=0; const uid=()=>++_u;
+function wSla(el){
+  const items = [['Azure Front Door',99.99,false],['App Service / Functions (Premium)',99.95,true],['API Management (Standard)',99.95,true],['Service Bus',99.9,true],['Azure SQL Database',99.99,true],['Storage account (LRS)',99.9,false],['Key Vault',99.99,false],['Logic Apps',99.9,false]];
+  el.innerHTML = `<div class="widget"><span class="wl">Try it: composite SLA</span><h4>Tick everything your app needs to work</h4><div class="stack" style="gap:6px">${items.map((it,i)=>`<label class="slarow"><input type="checkbox" ${it[2]?'checked':''} data-i="${i}"><span>${it[0]}</span><input type="number" step="0.01" min="90" max="100" value="${it[1]}" data-v="${i}" aria-label="SLA for ${it[0]}"></label>`).join('')}</div><label class="ctl"><input type="checkbox" class="dual"> Run the whole stack in two regions (active-active)</label><div class="kv"></div><p class="sub" style="margin:0">Starting values are typical published figures; real SLAs depend on tier and configuration. Edit them to match the official SLA page.</p></div>`;
+  const kv=$('.kv',el);
+  const run=()=>{
+    let c=1, n=0;
+    $$('input[type=checkbox][data-i]',el).forEach(cb=>{ if(cb.checked){ const v=parseFloat($(`input[data-v="${cb.dataset.i}"]`,el).value); if(!isNaN(v)){ c*=v/100; n++; } } });
+    if($('.dual',el).checked) c = 1-Math.pow(1-c,2);
+    const minMonth=(1-c)*30.44*24*60, hrsYear=(1-c)*365.25*24;
+    const fmt = m=> m>=120?`${(m/60).toFixed(1)} h`:`${m.toFixed(1)} min`;
+    kv.innerHTML = `<div><span>Services</span><b>${n}</b></div><div><span>Composite SLA</span><b>${(c*100).toFixed(4)}%</b></div><div><span>Downtime / month</span><b>${fmt(minMonth)}</b></div><div><span>Downtime / year</span><b>${hrsYear.toFixed(1)} h</b></div>`;
+  };
+  el.addEventListener('input',run); el.addEventListener('change',run); run();
+}
+function wBackoff(el){
+  el.innerHTML = `<div class="widget"><span class="wl">Try it: retry timing</span><h4>Fixed retries vs exponential backoff</h4><div class="ctl"><label>Attempts <input type="number" min="1" max="20" value="8" class="att"></label><label>Base delay (s) <input type="number" min="0.1" step="0.1" value="1" class="base"></label><label>Max delay (s) <input type="number" min="1" value="60" class="cap"></label><label><input type="checkbox" class="jit" checked> Add jitter</label></div><div class="bars"></div><div class="kv"></div><p class="sub" style="margin:0">Blue = exponential (base × 2<sup>n</sup>, capped). Amber = fixed delay, like a 1-second pause between 20 in-place retries. Exponential gives a struggling service room to recover; fixed retries finish sooner when the error is a short blip.</p></div>`;
+  const run=()=>{
+    const n=Math.max(1,Math.min(20,+$('.att',el).value||1)), b=Math.max(.1,+$('.base',el).value||1), cap=Math.max(1,+$('.cap',el).value||60), j=$('.jit',el).checked;
+    const exp=[],fix=[]; for(let i=0;i<n;i++){ let d=Math.min(cap,b*Math.pow(2,i)); if(j) d=d*(0.8+((i*37)%10)/25); exp.push(d); fix.push(b); }
+    const mx=Math.max(...exp,...fix);
+    $('.bars',el).innerHTML = exp.map((d,i)=>`<div class="barrow"><span>retry ${i+1}</span><div class="track"><div class="fill" style="width:${d/mx*100}%"></div></div><span>${d.toFixed(1)} s</span></div><div class="barrow"><span></span><div class="track"><div class="fill alt" style="width:${fix[i]/mx*100}%"></div></div><span>${fix[i].toFixed(1)} s</span></div>`).join('');
+    const se=exp.reduce((a,c)=>a+c,0), sf=fix.reduce((a,c)=>a+c,0);
+    $('.kv',el).innerHTML = `<div><span>Total wait, exponential</span><b>${se.toFixed(1)} s</b></div><div><span>Total wait, fixed</span><b>${sf.toFixed(1)} s</b></div>`;
+  };
+  el.addEventListener('input',run); run();
+}
+function wChooser(el){
+  const T = {
+    start:{q:'Is the job mainly connecting systems (“when X happens in SAP, update Y”), and would you rather draw it than code it?',y:'logic',n:'os'},
+    os:{q:'Do you need full control of the operating system, or software that must be installed on a server you manage?',y:'vm',n:'cont'},
+    cont:{q:'Is the app already packaged as a container image?',y:'k8s',n:'event'},
+    k8s:{q:'Do you need full Kubernetes (custom operators, service mesh) and have a team to run it?',y:'aks',n:'aca'},
+    event:{q:'Does it run only when something happens (a message, a file, a timer, an HTTP call), in short bursts?',y:'func',n:'stat'},
+    stat:{q:'Is it a static website (HTML/JS), maybe with a small API?',y:'swa',n:'app'},
+    logic:{r:'Logic Apps',w:'Connectors for SAP, SQL, Outlook and more, retries and run history built in, with almost no code.',c:'integration'},
+    vm:{r:'Virtual Machines (or VM Scale Sets)',w:'Full OS control. You own patching and security. Use Scale Sets if it must scale out.',c:'compute'},
+    aks:{r:'Azure Kubernetes Service',w:'Full Kubernetes power. Expect real operational work: upgrades, networking, security.',c:'compute'},
+    aca:{r:'Azure Container Apps',w:'Serverless containers with autoscale to zero, revisions and event-driven scaling, with no cluster to manage.',c:'compute'},
+    func:{r:'Azure Functions (Flex Consumption)',w:'Pay per execution, scale to zero, triggers for Service Bus, timers, HTTP and more. This is what most of your integration apps use.',c:'compute'},
+    swa:{r:'Static Web Apps',w:'Global hosting for front ends, free tier available, optional Functions API.',c:'compute'},
+    app:{r:'App Service',w:'Always-on web apps and APIs with slots, autoscale and custom domains.',c:'compute'}
+  };
+  let path=[], cur='start';
+  el.innerHTML = `<div class="widget"><span class="wl">Try it: compute chooser</span><h4>Which compute service fits?</h4><div class="wz"></div></div>`;
+  const wz=$('.wz',el);
+  const draw=()=>{
+    const node=T[cur];
+    if(node.r){ const ch=chBySlug(node.c); wz.innerHTML=`<div class="result"><b>${node.r}</b><p>${node.w}</p>${ch?`<p><a href="#ch-${ch.slug}">More in chapter ${chIndex(ch.slug)+1}</a></p>`:''}</div><div class="row" style="margin-top:10px"><button class="btn" data-a="restart">Start again</button></div>`; return; }
+    wz.innerHTML=`${path.length?`<p class="wiz-path">${path.length} answered</p>`:''}<p class="wiz-q">${node.q}</p><div class="row" style="margin-top:10px"><button class="btn pri" data-a="y">Yes</button><button class="btn" data-a="n">No</button>${path.length?'<button class="btn" data-a="back">Back</button>':''}</div>`;
+  };
+  wz.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const a=b.dataset.a;
+    if(a==='restart'){ path=[]; cur='start'; } else if(a==='back'){ cur=path.pop(); } else { path.push(cur); cur=T[cur][a]; }
+    draw(); });
+  draw();
+}
+
+/* ───── search ───── */
+const IDX = [];
+CH.forEach((c,i)=>IDX.push({k:'Chapter',t:`${i+1}. ${c.title}`,x:strip(c.one+' '+c.body+' '+c.kid).toLowerCase(),h:'#ch-'+c.slug,s:c.one}));
+SVC.forEach(s=>IDX.push({k:'Service',t:s[0],x:(s[0]+' '+s[2]+' '+s[3]+' '+s[4]).toLowerCase(),h:'#services',s:s[2],svc:s[0]}));
+GLOSS.forEach(g=>IDX.push({k:'Term',t:g[0],x:(g[0]+' '+g[1]).toLowerCase(),h:'#glossary',s:g[1],gl:g[0]}));
+LABS.forEach((l,i)=>IDX.push({k:'Lab',t:l.t,x:(l.t+' '+l.goal).toLowerCase(),h:'#labs',s:l.goal}));
+const qEl=$('#q'), res=$('#results');
+qEl.addEventListener('input',()=>{
+  const q=qEl.value.trim().toLowerCase();
+  if(q.length<2){ res.hidden=true; return; }
+  const scored = IDX.map(r=>{ const t=r.t.toLowerCase(); let sc = t===q?100:t.startsWith(q)?60:t.includes(q)?40:r.x.includes(q)?10:0; return [sc,r]; }).filter(a=>a[0]>0).sort((a,b)=>b[0]-a[0]).slice(0,12);
+  res.innerHTML = scored.length?scored.map(([,r],i)=>`<a href="${r.h}" data-r="${i}"><span class="kind">${r.k}</span>${esc(r.t)}<small>${esc(r.s.length>110?r.s.slice(0,110)+'…':r.s)}</small></a>`).join(''):'<a href="#services"><small>No match. Try a shorter word.</small></a>';
+  res.hidden=false;
+  $$('a',res).forEach(a=>a.addEventListener('click',()=>{ const r=scored[+a.dataset.r]?.[1]; if(r){ if(r.svc) pending.svc=r.svc; if(r.gl) pending.gl=r.gl; } res.hidden=true; qEl.value=''; if(location.hash===a.getAttribute('href')) route(); }));
+});
+qEl.addEventListener('keydown',e=>{ if(e.key==='Escape'){ res.hidden=true; qEl.blur(); } if(e.key==='Enter'){ const a=$('a',res); if(a) a.click(); } });
+document.addEventListener('click',e=>{ if(!e.target.closest('.search')) res.hidden=true; });
+
+/* term & service chips */
+main.addEventListener('click',e=>{
+  const t=e.target.closest('[data-term]'); if(t){ pending.gl=t.dataset.term; if(location.hash==='#glossary'){ e.preventDefault(); route(); } }
+  const s=e.target.closest('[data-svc]'); if(s){ pending.svc=s.dataset.svc; if(location.hash==='#services'){ e.preventDefault(); route(); } }
+  const d=e.target.closest('#doneBtn'); if(d){ const sl=d.dataset.slug; if(st.done[sl]) delete st.done[sl]; else st.done[sl]=true; save(); route(true); }
+});
+main.addEventListener('input',e=>{ const n=e.target.dataset&&e.target.dataset.note; if(n){ st.notes[n]=e.target.value; save(); } });
+
+/* drawer */
+const railEl=$('#rail'), scrim=$('#scrim'), mb=$('#menuBtn');
+const drawer=o=>{ railEl.classList.toggle('open',o); scrim.classList.toggle('open',o); mb.setAttribute('aria-expanded',o); };
+mb.addEventListener('click',()=>drawer(!railEl.classList.contains('open')));
+scrim.addEventListener('click',()=>drawer(false));
+railEl.addEventListener('click',e=>{ if(e.target.closest('a')) drawer(false); });
+
+/* router */
+function route(keepScroll){
+  const h=(location.hash||'#home').slice(1);
+  let html, bind=null, active=h;
+  if(h==='home'||h===''){ html=home(); active='home'; }
+  else if(h.startsWith('ch-')) html=chapter(h.slice(3));
+  else if(h==='services'){ html=services(); bind=bindServices; }
+  else if(h==='glossary'){ html=glossary(); bind=bindGlossary; }
+  else if(h==='labs') html=labs();
+  else if(h==='drills'){ html=drills(); bind=bindDrills; }
+  else if(h==='my-azure'){ html=myAzure(); bind=bindFlows; }
+  else if(h==='exam'){ html=exam(); bind=bindExam; }
+  else if(h==='roadmap') html=roadmap();
+  else if(h==='toolbox') html=toolbox();
+  else html=notFound();
+  const y = window.scrollY;
+  main.innerHTML=html; rail(active); mountWidgets(); if(bind) bind();
+  if(keepScroll===true) window.scrollTo(0,y); else window.scrollTo(0,0);
+  const ttl = h.startsWith('ch-')&&chBySlug(h.slice(3)) ? chBySlug(h.slice(3)).title+' · Azure From Zero' : 'Azure From Zero';
+  document.title = ttl;
+}
+window.addEventListener('hashchange',()=>route());
+route();
+})();
+</script>
+
+</body>
+</html>
+

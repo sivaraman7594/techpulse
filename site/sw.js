@@ -1,8 +1,9 @@
 // Offline support: app shell is served cache-first and refreshed in the background;
 // data/*.json is network-first so updates always win when online.
-const VERSION = 'tp-v4';
+const VERSION = 'tp-v5';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg',
-  'icons/icon-192.png', 'icons/icon-512.png'];
+  'icons/icon-192.png', 'icons/icon-512.png',
+  'azure-from-zero/index.html', 'azure-from-zero/chapters.js', 'azure-from-zero/services.js', 'azure-from-zero/extras.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
